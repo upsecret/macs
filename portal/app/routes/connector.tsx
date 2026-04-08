@@ -263,7 +263,7 @@ export default function Connector() {
                 </button>
               </div>
               <iframe
-                src={`/swagger-ui.html?urls.primaryName=${encodeURIComponent("qa-service")}`}
+                src={`http://localhost:8080/webjars/swagger-ui/index.html?configUrl=/v3/api-docs/swagger-config&urls.primaryName=${encodeURIComponent("qa-service")}`}
                 title={`Swagger - ${selected.connectorName}`}
                 className="flex-1 w-full border-0"
               />
