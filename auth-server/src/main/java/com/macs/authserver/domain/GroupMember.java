@@ -1,7 +1,3 @@
 package com.macs.authserver.domain;
 
-public record GroupMember(
-        String groupId,
-        String employeeNumber
-) {
-}
+public record GroupMember(Long groupId, String employeeNumber) {}

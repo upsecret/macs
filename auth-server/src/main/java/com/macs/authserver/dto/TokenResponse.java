@@ -9,8 +9,8 @@ import java.util.List;
 public record TokenResponse(
         String token,
 
-        @JsonProperty("app_name")
-        String appName,
+        @JsonProperty("system")
+        String system,
 
         @JsonProperty("employee_number")
         String employeeNumber,

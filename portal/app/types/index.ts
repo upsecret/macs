@@ -1,9 +1,37 @@
 export interface AuthResponse {
   token: string;
-  app_name: string;
+  system: string;
   employee_number: string;
   group: string;
   allowed_resources_list: string[];
+}
+
+export interface SystemConnector {
+  systemName: string;
+  connectorName: string;
+  description: string;
+}
+
+export interface GroupInfo {
+  groupId: number;
+  systemName: string;
+  groupName: string;
+}
+
+export interface GroupMember {
+  groupId: number;
+  employeeNumber: string;
+}
+
+export interface GroupResource {
+  groupId: number;
+  resourceName: string;
+}
+
+export interface UserResource {
+  employeeNumber: string;
+  systemName: string;
+  resourceName: string;
 }
 
 export interface GatewayDefinition {
@@ -25,33 +53,4 @@ export interface ConfigProperty {
   label: string;
   propKey: string;
   propValue: string;
-}
-
-export interface AppInfo {
-  appId: string;
-  appName: string;
-  description: string;
-  createdAt: string;
-}
-
-export interface GroupInfo {
-  groupId: string;
-  appId: string;
-  groupName: string;
-}
-
-export interface GroupMember {
-  groupId: string;
-  employeeNumber: string;
-}
-
-export interface GroupResource {
-  groupId: string;
-  resourceName: string;
-}
-
-export interface UserResource {
-  employeeNumber: string;
-  appId: string;
-  resourceName: string;
 }

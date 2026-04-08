@@ -15,26 +15,20 @@ public class GroupResourceRepository {
         this.client = client;
     }
 
-    public Flux<GroupResource> findByGroupId(String groupId) {
-        return client.sql("SELECT GROUP_ID, RESOURCE_NAME FROM GROUP_RESOURCE WHERE GROUP_ID = :groupId")
-                .bind("groupId", groupId)
-                .map((row, meta) -> new GroupResource(
-                        row.get("GROUP_ID", String.class),
-                        row.get("RESOURCE_NAME", String.class)))
+    public Flux<GroupResource> findByGroupId(Long groupId) {
+        return client.sql("SELECT GROUP_ID, RESOURCE_NAME FROM GROUP_RESOURCE WHERE GROUP_ID = :gid")
+                .bind("gid", groupId)
+                .map((row, meta) -> new GroupResource(row.get("GROUP_ID", Long.class), row.get("RESOURCE_NAME", String.class)))
                 .all();
     }
 
-    public Mono<Void> insert(String groupId, String resourceName) {
-        return client.sql("INSERT INTO GROUP_RESOURCE (GROUP_ID, RESOURCE_NAME) VALUES (:groupId, :resourceName)")
-                .bind("groupId", groupId)
-                .bind("resourceName", resourceName)
-                .then();
+    public Mono<Void> insert(Long groupId, String resourceName) {
+        return client.sql("INSERT INTO GROUP_RESOURCE (GROUP_ID, RESOURCE_NAME) VALUES (:gid, :res)")
+                .bind("gid", groupId).bind("res", resourceName).then();
     }
 
-    public Mono<Void> deleteByGroupIdAndResourceName(String groupId, String resourceName) {
-        return client.sql("DELETE FROM GROUP_RESOURCE WHERE GROUP_ID = :groupId AND RESOURCE_NAME = :resourceName")
-                .bind("groupId", groupId)
-                .bind("resourceName", resourceName)
-                .then();
+    public Mono<Void> delete(Long groupId, String resourceName) {
+        return client.sql("DELETE FROM GROUP_RESOURCE WHERE GROUP_ID = :gid AND RESOURCE_NAME = :res")
+                .bind("gid", groupId).bind("res", resourceName).then();
     }
 }

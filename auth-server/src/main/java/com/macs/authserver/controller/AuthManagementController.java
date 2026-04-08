@@ -1,9 +1,9 @@
 package com.macs.authserver.controller;
 
-import com.macs.authserver.domain.AppInfo;
 import com.macs.authserver.domain.GroupInfo;
 import com.macs.authserver.domain.GroupMember;
 import com.macs.authserver.domain.GroupResource;
+import com.macs.authserver.domain.SystemConnector;
 import com.macs.authserver.domain.UserResource;
 import com.macs.authserver.dto.GroupRequest;
 import com.macs.authserver.dto.MemberRequest;
@@ -12,22 +12,13 @@ import com.macs.authserver.service.AuthManagementService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/api/auth")
-@Tag(name = "Access Management", description = "Apps, groups, members, and resource permission management")
+@Tag(name = "Access Management", description = "Systems, groups, members, and resource management")
 public class AuthManagementController {
 
     private final AuthManagementService service;
@@ -36,118 +27,97 @@ public class AuthManagementController {
         this.service = service;
     }
 
-    // ── Apps ────────────────────────────────────────────────────
+    // ── Systems ─────────────────────────────────────────────
 
-    @GetMapping("/apps")
-    @Operation(summary = "List all applications")
-    public Flux<AppInfo> getApps() {
-        return service.findAllApps();
+    @GetMapping("/systems")
+    @Operation(summary = "List all system-connector mappings")
+    public Flux<SystemConnector> getSystems() {
+        return service.findAllSystemConnectors();
     }
 
-    // ── Groups ──────────────────────────────────────────────────
-
-    @GetMapping("/apps/{appName}/groups")
-    @Operation(summary = "List groups for an application")
-    public Flux<GroupInfo> getGroups(@PathVariable String appName) {
-        return service.findGroupsByAppName(appName);
+    @GetMapping("/systems/{systemName}/connectors")
+    @Operation(summary = "List connectors for a system")
+    public Flux<SystemConnector> getConnectors(@PathVariable String systemName) {
+        return service.findConnectorsBySystem(systemName);
     }
 
-    @PostMapping("/apps/{appName}/groups")
+    // ── Groups ──────────────────────────────────────────────
+
+    @GetMapping("/systems/{systemName}/groups")
+    @Operation(summary = "List groups for a system")
+    public Flux<GroupInfo> getGroups(@PathVariable String systemName) {
+        return service.findGroupsBySystem(systemName);
+    }
+
+    @PostMapping("/systems/{systemName}/groups")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create a new group")
-    public Mono<GroupInfo> createGroup(
-            @PathVariable String appName,
-            @RequestBody GroupRequest request) {
-        return service.createGroup(appName, request);
+    public Mono<GroupInfo> createGroup(@PathVariable String systemName, @RequestBody GroupRequest request) {
+        return service.createGroup(systemName, request);
     }
 
     @PutMapping("/groups/{groupId}")
     @Operation(summary = "Update a group")
-    public Mono<GroupInfo> updateGroup(
-            @PathVariable String groupId,
-            @RequestBody GroupRequest request) {
+    public Mono<GroupInfo> updateGroup(@PathVariable Long groupId, @RequestBody GroupRequest request) {
         return service.updateGroup(groupId, request);
     }
 
-    // ── Group Members ───────────────────────────────────────────
+    // ── Members ─────────────────────────────────────────────
 
     @GetMapping("/groups/{groupId}/members")
     @Operation(summary = "List members of a group")
-    public Flux<GroupMember> getMembers(@PathVariable String groupId) {
-        return service.findMembersByGroupId(groupId);
+    public Flux<GroupMember> getMembers(@PathVariable Long groupId) {
+        return service.findMembers(groupId);
     }
 
     @PostMapping("/groups/{groupId}/members")
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Add a member to a group")
-    public Mono<Void> addMember(
-            @PathVariable String groupId,
-            @RequestBody MemberRequest request) {
+    public Mono<Void> addMember(@PathVariable Long groupId, @RequestBody MemberRequest request) {
         return service.addMember(groupId, request.employeeNumber());
     }
 
     @DeleteMapping("/groups/{groupId}/members/{employeeNumber}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Remove a member from a group")
-    public Mono<Void> removeMember(
-            @PathVariable String groupId,
-            @PathVariable String employeeNumber) {
+    public Mono<Void> removeMember(@PathVariable Long groupId, @PathVariable String employeeNumber) {
         return service.removeMember(groupId, employeeNumber);
     }
 
-    // ── Group Resources ─────────────────────────────────────────
+    // ── Group Resources ─────────────────────────────────────
 
     @GetMapping("/groups/{groupId}/resources")
-    @Operation(summary = "List resources assigned to a group")
-    public Flux<GroupResource> getGroupResources(@PathVariable String groupId) {
+    @Operation(summary = "List resources (connectors) assigned to a group")
+    public Flux<GroupResource> getGroupResources(@PathVariable Long groupId) {
         return service.findGroupResources(groupId);
     }
 
     @PostMapping("/groups/{groupId}/resources")
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Add a resource to a group")
-    public Mono<Void> addGroupResource(
-            @PathVariable String groupId,
-            @RequestBody ResourceRequest request) {
+    public Mono<Void> addGroupResource(@PathVariable Long groupId, @RequestBody ResourceRequest request) {
         return service.addGroupResource(groupId, request.resourceName());
     }
 
     @DeleteMapping("/groups/{groupId}/resources")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Remove a resource from a group")
-    public Mono<Void> removeGroupResource(
-            @PathVariable String groupId,
-            @RequestParam String resourceName) {
+    public Mono<Void> removeGroupResource(@PathVariable Long groupId, @RequestParam String resourceName) {
         return service.removeGroupResource(groupId, resourceName);
     }
 
-    // ── User Resources ──────────────────────────────────────────
+    // ── User Resources ──────────────────────────────────────
 
-    @GetMapping("/users/{employeeNumber}/apps/{appName}/resources")
-    @Operation(summary = "List personal resources for a user in an app")
-    public Flux<UserResource> getUserResources(
-            @PathVariable String employeeNumber,
-            @PathVariable String appName) {
-        return service.findUserResources(employeeNumber, appName);
+    @GetMapping("/users/{employeeNumber}/systems/{systemName}/resources")
+    public Flux<UserResource> getUserResources(@PathVariable String employeeNumber, @PathVariable String systemName) {
+        return service.findUserResources(employeeNumber, systemName);
     }
 
-    @PostMapping("/users/{employeeNumber}/apps/{appName}/resources")
+    @PostMapping("/users/{employeeNumber}/systems/{systemName}/resources")
     @ResponseStatus(HttpStatus.CREATED)
-    @Operation(summary = "Add a personal resource for a user")
-    public Mono<Void> addUserResource(
-            @PathVariable String employeeNumber,
-            @PathVariable String appName,
-            @RequestBody ResourceRequest request) {
-        return service.addUserResource(employeeNumber, appName, request.resourceName());
+    public Mono<Void> addUserResource(@PathVariable String employeeNumber, @PathVariable String systemName, @RequestBody ResourceRequest request) {
+        return service.addUserResource(employeeNumber, systemName, request.resourceName());
     }
 
-    @DeleteMapping("/users/{employeeNumber}/apps/{appName}/resources")
+    @DeleteMapping("/users/{employeeNumber}/systems/{systemName}/resources")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Remove a personal resource from a user")
-    public Mono<Void> removeUserResource(
-            @PathVariable String employeeNumber,
-            @PathVariable String appName,
-            @RequestParam String resourceName) {
-        return service.removeUserResource(employeeNumber, appName, resourceName);
+    public Mono<Void> removeUserResource(@PathVariable String employeeNumber, @PathVariable String systemName, @RequestParam String resourceName) {
+        return service.removeUserResource(employeeNumber, systemName, resourceName);
     }
 }

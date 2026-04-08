@@ -15,41 +15,20 @@ public class UserResourceRepository {
         this.client = client;
     }
 
-    public Flux<UserResource> findByEmployeeNumberAndAppId(String employeeNumber, String appId) {
-        return client.sql("""
-                        SELECT EMPLOYEE_NUMBER, APP_ID, RESOURCE_NAME
-                        FROM USER_RESOURCE
-                        WHERE EMPLOYEE_NUMBER = :employeeNumber AND APP_ID = :appId
-                        """)
-                .bind("employeeNumber", employeeNumber)
-                .bind("appId", appId)
-                .map((row, meta) -> new UserResource(
-                        row.get("EMPLOYEE_NUMBER", String.class),
-                        row.get("APP_ID", String.class),
-                        row.get("RESOURCE_NAME", String.class)))
+    public Flux<UserResource> findByEmployeeNumberAndSystemName(String employeeNumber, String systemName) {
+        return client.sql("SELECT EMPLOYEE_NUMBER, SYSTEM_NAME, RESOURCE_NAME FROM USER_RESOURCE WHERE EMPLOYEE_NUMBER = :emp AND SYSTEM_NAME = :sys")
+                .bind("emp", employeeNumber).bind("sys", systemName)
+                .map((row, meta) -> new UserResource(row.get("EMPLOYEE_NUMBER", String.class), row.get("SYSTEM_NAME", String.class), row.get("RESOURCE_NAME", String.class)))
                 .all();
     }
 
-    public Mono<Void> insert(String employeeNumber, String appId, String resourceName) {
-        return client.sql("""
-                        INSERT INTO USER_RESOURCE (EMPLOYEE_NUMBER, APP_ID, RESOURCE_NAME)
-                        VALUES (:employeeNumber, :appId, :resourceName)
-                        """)
-                .bind("employeeNumber", employeeNumber)
-                .bind("appId", appId)
-                .bind("resourceName", resourceName)
-                .then();
+    public Mono<Void> insert(String employeeNumber, String systemName, String resourceName) {
+        return client.sql("INSERT INTO USER_RESOURCE (EMPLOYEE_NUMBER, SYSTEM_NAME, RESOURCE_NAME) VALUES (:emp, :sys, :res)")
+                .bind("emp", employeeNumber).bind("sys", systemName).bind("res", resourceName).then();
     }
 
-    public Mono<Void> deleteByEmployeeNumberAndAppIdAndResourceName(
-            String employeeNumber, String appId, String resourceName) {
-        return client.sql("""
-                        DELETE FROM USER_RESOURCE
-                        WHERE EMPLOYEE_NUMBER = :employeeNumber AND APP_ID = :appId AND RESOURCE_NAME = :resourceName
-                        """)
-                .bind("employeeNumber", employeeNumber)
-                .bind("appId", appId)
-                .bind("resourceName", resourceName)
-                .then();
+    public Mono<Void> delete(String employeeNumber, String systemName, String resourceName) {
+        return client.sql("DELETE FROM USER_RESOURCE WHERE EMPLOYEE_NUMBER = :emp AND SYSTEM_NAME = :sys AND RESOURCE_NAME = :res")
+                .bind("emp", employeeNumber).bind("sys", systemName).bind("res", resourceName).then();
     }
 }
