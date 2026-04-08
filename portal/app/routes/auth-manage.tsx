@@ -244,11 +244,11 @@ export default function AuthManage() {
             좌측 패널: App → Group 트리
             ────────────────────────────────────────────────── */}
         <div className="w-72 shrink-0 space-y-4">
-          {/* App 선택 */}
+          {/* System / Connector 선택 */}
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="bg-header px-4 py-2.5 border-b border-gray-200">
               <span className="text-sm font-semibold text-gray-700">
-                애플리케이션
+                System / Connector
               </span>
             </div>
             <ul className="p-2">
@@ -262,15 +262,21 @@ export default function AuthManage() {
                       setGroupResources([]);
                       setUserSearched(false);
                     }}
-                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                    className={`w-full text-left px-3 py-2.5 rounded-md text-sm transition-colors ${
                       selectedApp === app.appName
                         ? "bg-primary text-white font-medium"
                         : "text-gray-700 hover:bg-gray-100"
                     }`}
                   >
-                    {app.appName}
+                    <span className="font-medium uppercase">{app.appName}</span>
                     {app.description && (
-                      <span className="block text-xs mt-0.5 opacity-70">
+                      <span
+                        className={`block text-xs mt-0.5 font-mono ${
+                          selectedApp === app.appName
+                            ? "text-white/70"
+                            : "text-primary-text"
+                        }`}
+                      >
                         {app.description}
                       </span>
                     )}

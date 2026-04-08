@@ -134,7 +134,7 @@ INSERT INTO PROPERTIES VALUES ('auth-server', 'default', 'main', 'jwt.refresh-ex
 
 -- ── APP_INFO ────────────────────────────────────────────────
 INSERT INTO APP_INFO (APP_ID, APP_NAME, DESCRIPTION)
-VALUES ('portal', 'portal', 'MACS Portal Application');
+VALUES ('portal', 'portal', NULL);
 
 -- ── GROUP_INFO ──────────────────────────────────────────────
 INSERT INTO GROUP_INFO (GROUP_ID, APP_ID, GROUP_NAME)
@@ -181,7 +181,7 @@ INSERT INTO GROUP_RESOURCE VALUES ('portal-user', '/portal/**');
 
 -- ── RMS App: validation-history ─────────────────────────────
 INSERT INTO APP_INFO (APP_ID, APP_NAME, DESCRIPTION)
-VALUES ('rms', 'rms', 'RMS Application');
+VALUES ('rms', 'rms', 'validation-history');
 
 INSERT INTO GROUP_INFO VALUES ('rms-admin', 'rms', 'admin');
 INSERT INTO GROUP_INFO VALUES ('rms-user', 'rms', 'user');
@@ -194,7 +194,7 @@ INSERT INTO GROUP_RESOURCE VALUES ('rms-user', '/api/validation-history/**');
 
 -- ── EES App: token-dictionary ───────────────────────────────
 INSERT INTO APP_INFO (APP_ID, APP_NAME, DESCRIPTION)
-VALUES ('ees', 'ees', 'EES Application');
+VALUES ('ees', 'ees', 'token-dictionary');
 
 INSERT INTO GROUP_INFO VALUES ('ees-admin', 'ees', 'admin');
 INSERT INTO GROUP_INFO VALUES ('ees-user', 'ees', 'user');
