@@ -1,8 +1,10 @@
+# ── Stage 1: Build ───────────────────────────────────────────
 FROM eclipse-temurin:21-jdk-alpine AS build
 WORKDIR /workspace
 
 COPY gradlew .
 COPY gradle gradle
+COPY libs/gradle-8.14-bin.zip libs/
 COPY build.gradle.kts settings.gradle.kts ./
 
 COPY shared shared
@@ -11,12 +13,13 @@ COPY qa-service qa-service
 RUN chmod +x gradlew \
     && ./gradlew :qa-service:bootJar -x test --no-daemon
 
+# ── Stage 2: Runtime ─────────────────────────────────────────
 FROM eclipse-temurin:21-jre-alpine
 
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 
-ADD https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar /opt/opentelemetry-javaagent.jar
+COPY libs/opentelemetry-javaagent.jar /opt/opentelemetry-javaagent.jar
 RUN chmod 644 /opt/opentelemetry-javaagent.jar
 
 COPY --from=build /workspace/qa-service/build/libs/*.jar app.jar

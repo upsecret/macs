@@ -3,15 +3,13 @@
 FROM eclipse-temurin:21-jdk-alpine AS build
 WORKDIR /workspace
 
-# Gradle wrapper + root config (cache layer)
+# Gradle wrapper + 로컬 배포판 (폐쇄망 지원)
 COPY gradlew .
 COPY gradle gradle
+COPY libs/gradle-8.14-bin.zip libs/
 COPY build.gradle.kts settings.gradle.kts ./
 
-# Shared dependency module
 COPY shared shared
-
-# Module source
 COPY config-server config-server
 
 RUN chmod +x gradlew \
@@ -23,7 +21,8 @@ FROM eclipse-temurin:21-jre-alpine
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 
-ADD https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar /opt/opentelemetry-javaagent.jar
+# 로컬 OTel javaagent (폐쇄망 지원)
+COPY libs/opentelemetry-javaagent.jar /opt/opentelemetry-javaagent.jar
 RUN chmod 644 /opt/opentelemetry-javaagent.jar
 
 COPY --from=build /workspace/config-server/build/libs/*.jar app.jar
