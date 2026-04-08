@@ -1,8 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
+import axios from "axios";
 import api from "../utils/api";
 import type { SystemConnector } from "../types";
 
-/* ── 커넥터 카드 (시스템별 그룹) ───────────────────────────── */
+/* 헬스체크 전용 — 인터셉터(자동 로그아웃) 없는 별도 인스턴스 */
+const healthClient = axios.create({ baseURL: "http://localhost:8080", timeout: 5000 });
+
+/* ── 커넥터 카드 ──────────────────────────────────────────── */
 interface ConnectorCard {
   systemName: string;
   connectorName: string;
@@ -17,9 +21,9 @@ const CONNECTOR_SWAGGER: Record<string, string> = {
   "portal": "/v3/api-docs/auth-server",
 };
 
-/* ── 커넥터 → API 경로 (healthcheck용) ──────────────────────── */
+/* ── 커넥터 → 헬스체크 (인증 불필요 경로만) ──────────────────── */
 const CONNECTOR_HEALTH: Record<string, string> = {
-  "qa-tool": "/api/qa/hello",
+  "qa-tool": "/actuator/health",
   "portal": "/actuator/health",
 };
 
@@ -57,8 +61,8 @@ export default function Connector() {
           );
           return;
         }
-        api
-          .get(healthPath, { timeout: 5000, headers: { app_name: "portal", employee_number: "SYSTEM" } })
+        healthClient
+          .get(healthPath)
           .then(() =>
             setConnectors((prev) =>
               prev.map((c) =>
