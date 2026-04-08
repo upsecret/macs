@@ -5,7 +5,7 @@ import { useAuthStore } from "../stores/authStore";
 import type { SystemConnector } from "../types";
 
 /* 헬스체크 전용 — 인터셉터(자동 로그아웃) 없는 별도 인스턴스 */
-const healthClient = axios.create({ baseURL: "http://localhost:8080", timeout: 5000 });
+const healthClient = axios.create({ timeout: 5000 });
 
 /* ── 커넥터 카드 ──────────────────────────────────────────── */
 interface ConnectorCard {
@@ -302,7 +302,7 @@ export default function Connector() {
                 </div>
               </div>
               <iframe
-                src={`http://localhost:8080/webjars/swagger-ui/index.html?configUrl=/v3/api-docs/swagger-config&urls.primaryName=${encodeURIComponent("qa-service")}`}
+                src={`/webjars/swagger-ui/index.html?configUrl=/v3/api-docs/swagger-config&urls.primaryName=${encodeURIComponent("qa-service")}`}
                 title={`Swagger - ${selected.connectorName}`}
                 className="flex-1 w-full border-0"
               />

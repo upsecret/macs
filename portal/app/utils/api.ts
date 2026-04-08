@@ -2,7 +2,7 @@ import axios, { type AxiosError } from "axios";
 import { useAuthStore } from "../stores/authStore";
 
 const api = axios.create({
-  baseURL: "http://localhost:8080",
+  baseURL: "",  // nginx reverse proxy → same-origin
   timeout: 15000,
   headers: { "Content-Type": "application/json" },
 });
