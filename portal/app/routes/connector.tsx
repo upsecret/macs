@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import api from "../utils/api";
+import { useAuthStore } from "../stores/authStore";
 import type { SystemConnector } from "../types";
 
 /* 헬스체크 전용 — 인터셉터(자동 로그아웃) 없는 별도 인스턴스 */
@@ -28,6 +29,7 @@ const CONNECTOR_HEALTH: Record<string, string> = {
 };
 
 export default function Connector() {
+  const { allowedResourcesList } = useAuthStore();
   const [connectors, setConnectors] = useState<ConnectorCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
@@ -171,44 +173,55 @@ export default function Connector() {
                     .map((c) => {
                       const st = statusConfig[c.status];
                       const isSelected = selectedConnector === c.connectorName;
+                      const hasPermission = allowedResourcesList.includes(c.connectorName);
                       return (
                         <div
                           key={c.connectorName}
-                          onClick={() => setSelectedConnector(isSelected ? null : c.connectorName)}
-                          className={`bg-white rounded-lg shadow overflow-hidden cursor-pointer transition-all hover:shadow-md ${
-                            isSelected ? "ring-2 ring-primary" : "hover:ring-1 hover:ring-gray-200"
-                          }`}
+                          onClick={() => hasPermission && setSelectedConnector(isSelected ? null : c.connectorName)}
+                          className={[
+                            "rounded-lg shadow overflow-hidden transition-all",
+                            hasPermission
+                              ? `bg-white cursor-pointer hover:shadow-md ${isSelected ? "ring-2 ring-primary" : "hover:ring-1 hover:ring-gray-200"}`
+                              : "bg-gray-100 opacity-60 cursor-not-allowed",
+                          ].join(" ")}
                         >
                           {/* 카드 헤더 */}
-                          <div className="bg-header px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-                            <span className="text-sm font-semibold text-gray-800 font-mono">
+                          <div className={`px-4 py-3 border-b border-gray-200 flex items-center justify-between ${hasPermission ? "bg-header" : "bg-gray-200"}`}>
+                            <span className={`text-sm font-semibold font-mono ${hasPermission ? "text-gray-800" : "text-gray-400"}`}>
                               {c.connectorName}
                             </span>
-                            <span className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full ${st.bg}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
-                              {st.label}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              {!hasPermission && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-300 text-gray-500">
+                                  권한 없음
+                                </span>
+                              )}
+                              <span className={`inline-flex items-center gap-1.5 text-[11px] px-2 py-0.5 rounded-full ${hasPermission ? st.bg : "bg-gray-200"}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${hasPermission ? st.dot : "bg-gray-400"}`} />
+                                {hasPermission ? st.label : "-"}
+                              </span>
+                            </div>
                           </div>
 
                           {/* 카드 바디 */}
                           <div className="px-4 py-3 space-y-2">
                             <div>
                               <span className="text-[10px] uppercase tracking-wider text-gray-400">System</span>
-                              <p className="text-sm text-gray-700 font-medium uppercase">{c.systemName}</p>
+                              <p className={`text-sm font-medium uppercase ${hasPermission ? "text-gray-700" : "text-gray-400"}`}>{c.systemName}</p>
                             </div>
                             {c.description && (
                               <div>
                                 <span className="text-[10px] uppercase tracking-wider text-gray-400">Description</span>
-                                <p className="text-sm text-gray-600">{c.description}</p>
+                                <p className={`text-sm ${hasPermission ? "text-gray-600" : "text-gray-400"}`}>{c.description}</p>
                               </div>
                             )}
                             <div className="flex gap-2 pt-1">
-                              {c.swaggerUrl && (
+                              {c.swaggerUrl && hasPermission && (
                                 <span className="bg-secondary text-primary text-xs px-2 py-0.5 rounded font-mono">
                                   Swagger
                                 </span>
                               )}
-                              {CONNECTOR_HEALTH[c.connectorName] && (
+                              {CONNECTOR_HEALTH[c.connectorName] && hasPermission && (
                                 <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded font-mono">
                                   {CONNECTOR_HEALTH[c.connectorName]}
                                 </span>
