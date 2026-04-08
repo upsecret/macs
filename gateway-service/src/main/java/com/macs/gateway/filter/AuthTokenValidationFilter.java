@@ -24,11 +24,20 @@ public class AuthTokenValidationFilter implements GlobalFilter, Ordered {
     private static final List<String> SKIP_PATHS = List.of(
             "/api/auth/**",
             "/api/config/**",
-            "/api/qa/**",
             "/actuator/**",
             "/swagger-ui/**",
             "/v3/api-docs/**",
             "/webjars/**"
+    );
+
+    /**
+     * URL 경로 → 커넥터 이름 매핑.
+     * auth-server의 allowed_resources_list에는 커넥터 이름이 들어있으므로
+     * 요청 경로를 커넥터 이름으로 변환하여 validate에 전달한다.
+     */
+    private static final Map<String, String> PATH_TO_CONNECTOR = Map.of(
+            "/api/qa/**", "qa-tool",
+            "/portal/**", "portal"
     );
 
     private final WebClient authServiceWebClient;
@@ -52,17 +61,21 @@ public class AuthTokenValidationFilter implements GlobalFilter, Ordered {
                     exchange, HttpStatus.UNAUTHORIZED, "Missing or invalid Authorization header");
         }
 
+        // URL → 커넥터 이름 변환 (매핑 없으면 경로 그대로 전달)
+        String connectorName = resolveConnector(path);
+
         return authServiceWebClient.post()
                 .uri("/api/auth/validate")
                 .header(HttpHeaders.AUTHORIZATION, authorization)
-                .bodyValue(Map.of("request_app", path))
+                .bodyValue(Map.of("request_app", connectorName))
                 .retrieve()
                 .toBodilessEntity()
                 .then(chain.filter(exchange))
                 .onErrorResume(ex -> {
-                    log.warn("Auth validation failed for path={}: {}", path, ex.getMessage());
+                    log.warn("Auth validation failed for path={} connector={}: {}",
+                            path, connectorName, ex.getMessage());
                     return HeaderValidationFilter.writeError(
-                            exchange, HttpStatus.FORBIDDEN, "Access denied");
+                            exchange, HttpStatus.FORBIDDEN, "Access denied to " + connectorName);
                 });
     }
 
@@ -73,5 +86,14 @@ public class AuthTokenValidationFilter implements GlobalFilter, Ordered {
 
     private boolean shouldSkip(String path) {
         return SKIP_PATHS.stream().anyMatch(pattern -> pathMatcher.match(pattern, path));
+    }
+
+    private String resolveConnector(String path) {
+        for (var entry : PATH_TO_CONNECTOR.entrySet()) {
+            if (pathMatcher.match(entry.getKey(), path)) {
+                return entry.getValue();
+            }
+        }
+        return path;
     }
 }
