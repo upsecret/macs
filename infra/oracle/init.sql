@@ -109,14 +109,27 @@ INSERT INTO GROUP_MEMBER VALUES (5,'2065162');
 INSERT INTO GROUP_MEMBER VALUES (7,'2065162');
 
 -- Resources (커넥터 이름)
+-- portal admin: 모든 커넥터 접근
 INSERT INTO GROUP_RESOURCE VALUES (1,'portal');
+INSERT INTO GROUP_RESOURCE VALUES (1,'validation-history');
+INSERT INTO GROUP_RESOURCE VALUES (1,'token-dictionary');
+INSERT INTO GROUP_RESOURCE VALUES (1,'qa-tool');
+-- portal developer
 INSERT INTO GROUP_RESOURCE VALUES (2,'portal');
+-- portal operator: portal + rms/ees 커넥터
 INSERT INTO GROUP_RESOURCE VALUES (3,'portal');
+INSERT INTO GROUP_RESOURCE VALUES (3,'validation-history');
+INSERT INTO GROUP_RESOURCE VALUES (3,'token-dictionary');
+-- portal user
 INSERT INTO GROUP_RESOURCE VALUES (4,'portal');
+-- rms admin
 INSERT INTO GROUP_RESOURCE VALUES (5,'validation-history');
+-- rms user
 INSERT INTO GROUP_RESOURCE VALUES (6,'validation-history');
+-- ees admin
 INSERT INTO GROUP_RESOURCE VALUES (7,'token-dictionary');
 INSERT INTO GROUP_RESOURCE VALUES (7,'qa-tool');
+-- ees user
 INSERT INTO GROUP_RESOURCE VALUES (8,'token-dictionary');
 
 COMMIT;
