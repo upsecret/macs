@@ -15,11 +15,8 @@ export default function Navbar() {
   return (
     <nav className="h-14 bg-navbar-bg flex items-center px-6 shrink-0">
       {/* ── 좌측: 로고 ────────────────────────────────────── */}
-      <NavLink to="/" className="flex items-center gap-2 mr-10">
-        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-          <span className="text-white text-sm font-bold">M</span>
-        </div>
-        <span className="text-white text-lg font-bold tracking-wide">
+      <NavLink to="/" className="mr-10">
+        <span className="text-white text-xl font-extrabold tracking-widest">
           MACS
         </span>
       </NavLink>

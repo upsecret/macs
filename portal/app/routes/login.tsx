@@ -48,11 +48,10 @@ export default function Login() {
       <div className="w-full max-w-sm">
         {/* 로고 영역 */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-primary rounded-2xl mb-4">
-            <span className="text-white text-2xl font-bold">M</span>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">MACS Portal</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-4xl font-extrabold tracking-widest text-primary mb-2">
+            MACS
+          </h1>
+          <p className="text-sm text-gray-500">
             Micro Application Configuration System
           </p>
         </div>
