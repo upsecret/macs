@@ -1,0 +1,26 @@
+server:
+  port: 9100
+
+spring:
+  application:
+    name: qa-service
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+otel:
+  exporter:
+    otlp:
+      endpoint: http://otel-collector:4317

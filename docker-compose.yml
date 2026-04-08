@@ -105,6 +105,29 @@ services:
     networks:
       - macs-network
 
+  # ── QA Service ──────────────────────────────────────────────
+  qa-service:
+    build:
+      context: .
+      dockerfile: qa-service/Dockerfile
+    container_name: macs-qa-service
+    ports:
+      - "9100:9100"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+    depends_on:
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:9100/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - macs-network
+
   # ── Portal (React) ────────────────────────────────────────
   portal:
     build:

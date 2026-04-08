@@ -205,6 +205,19 @@ INSERT INTO GROUP_MEMBER VALUES ('ees-admin', '2065162');
 INSERT INTO GROUP_RESOURCE VALUES ('ees-admin', '/api/token-dictionary/**');
 INSERT INTO GROUP_RESOURCE VALUES ('ees-user', '/api/token-dictionary/**');
 
+-- ── EES App: qa-tool (QA Service connector) ────────────────
+INSERT INTO APP_INFO (APP_ID, APP_NAME, DESCRIPTION)
+VALUES ('ees-qa', 'ees', 'qa-tool');
+
+INSERT INTO GROUP_INFO VALUES ('ees-qa-admin', 'ees-qa', 'admin');
+INSERT INTO GROUP_INFO VALUES ('ees-qa-user', 'ees-qa', 'user');
+
+INSERT INTO GROUP_MEMBER VALUES ('ees-qa-admin', '2078432');
+INSERT INTO GROUP_MEMBER VALUES ('ees-qa-admin', '2065162');
+
+INSERT INTO GROUP_RESOURCE VALUES ('ees-qa-admin', '/api/qa/**');
+INSERT INTO GROUP_RESOURCE VALUES ('ees-qa-user', '/api/qa/**');
+
 -- ── USER_RESOURCE (per-user overrides) ──────────────────────
 INSERT INTO USER_RESOURCE VALUES ('2078432', 'portal', '/actuator/busrefresh');
 
