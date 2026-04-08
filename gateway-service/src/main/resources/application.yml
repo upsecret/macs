@@ -64,6 +64,11 @@ gateway:
     capacity: 100
     refill-tokens: 100
     refill-duration: PT1M
+    overrides:
+      - path-prefix: /api/qa
+        capacity: 3
+        refill-tokens: 3
+        refill-duration: PT10S
 
 # ── Actuator ─────────────────────────────────────────────────
 management:

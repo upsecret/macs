@@ -24,6 +24,7 @@ public class AuthTokenValidationFilter implements GlobalFilter, Ordered {
     private static final List<String> SKIP_PATHS = List.of(
             "/api/auth/**",
             "/api/config/**",
+            "/api/qa/**",
             "/actuator/**",
             "/swagger-ui/**",
             "/v3/api-docs/**",

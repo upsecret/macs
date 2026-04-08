@@ -15,19 +15,24 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 @Component
 public class RateLimitFilter implements GlobalFilter, Ordered {
 
     private final ProxyManager<byte[]> proxyManager;
-    private final BucketConfiguration bucketConfig;
+    private final BucketConfiguration defaultConfig;
+    private final List<RateLimitProperties.Override> overrides;
 
-    public RateLimitFilter(ProxyManager<byte[]> proxyManager, RateLimitProperties properties) {
+    public RateLimitFilter(ProxyManager<byte[]> proxyManager, RateLimitProperties props) {
         this.proxyManager = proxyManager;
-        this.bucketConfig = BucketConfiguration.builder()
+        this.overrides = props.overrides();
+
+        // 기본: refillGreedy (연속 충전)
+        this.defaultConfig = BucketConfiguration.builder()
                 .addLimit(Bandwidth.builder()
-                        .capacity(properties.capacity())
-                        .refillGreedy(properties.refillTokens(), properties.refillDuration())
+                        .capacity(props.capacity())
+                        .refillGreedy(props.refillTokens(), props.refillDuration())
                         .build())
                 .build();
     }
@@ -46,15 +51,22 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        String key = appName + ":" + employeeNumber;
+        // 경로별 오버라이드 매칭
+        RateLimitProperties.Override matched = findOverride(path);
+        BucketConfiguration config = matched != null ? buildOverrideConfig(matched) : defaultConfig;
+
+        // 오버라이드 경로는 별도 버킷 키 사용 (기본 버킷과 분리)
+        String key = matched != null
+                ? matched.pathPrefix() + ":" + appName + ":" + employeeNumber
+                : appName + ":" + employeeNumber;
         byte[] keyBytes = key.getBytes(StandardCharsets.UTF_8);
 
         return Mono.fromCallable(() -> {
-                    var bucket = proxyManager.builder().build(keyBytes, () -> bucketConfig);
+                    var bucket = proxyManager.builder().build(keyBytes, () -> config);
                     return bucket.tryConsumeAndReturnRemaining(1);
                 })
                 .subscribeOn(Schedulers.boundedElastic())
-                .flatMap(probe -> handleProbe(probe, exchange, chain));
+                .flatMap(probe -> handleProbe(probe, exchange, chain, matched));
     }
 
     @Override
@@ -62,9 +74,28 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
         return Ordered.HIGHEST_PRECEDENCE + 2;
     }
 
+    /** 경로 prefix 매칭 */
+    private RateLimitProperties.Override findOverride(String path) {
+        for (var o : overrides) {
+            if (path.startsWith(o.pathPrefix())) return o;
+        }
+        return null;
+    }
+
+    /** 오버라이드: refillIntervally (일괄 충전 — 초과 시 대기 후 한번에 복원) */
+    private BucketConfiguration buildOverrideConfig(RateLimitProperties.Override o) {
+        return BucketConfiguration.builder()
+                .addLimit(Bandwidth.builder()
+                        .capacity(o.capacity())
+                        .refillIntervally(o.refillTokens(), o.refillDuration())
+                        .build())
+                .build();
+    }
+
     private Mono<Void> handleProbe(ConsumptionProbe probe,
                                    ServerWebExchange exchange,
-                                   GatewayFilterChain chain) {
+                                   GatewayFilterChain chain,
+                                   RateLimitProperties.Override matched) {
         if (probe.isConsumed()) {
             exchange.getResponse().getHeaders()
                     .add("X-Rate-Limit-Remaining", String.valueOf(probe.getRemainingTokens()));
@@ -74,7 +105,13 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
         long retryAfterSeconds = probe.getNanosToWaitForRefill() / 1_000_000_000;
         exchange.getResponse().getHeaders()
                 .add("Retry-After", String.valueOf(retryAfterSeconds));
+
+        String msg = matched != null
+                ? "Rate limit exceeded for " + matched.pathPrefix() + " (limit: "
+                  + matched.capacity() + "/" + matched.refillDuration().getSeconds() + "s)"
+                : "Rate limit exceeded";
+
         return HeaderValidationFilter.writeError(
-                exchange, HttpStatus.TOO_MANY_REQUESTS, "Rate limit exceeded");
+                exchange, HttpStatus.TOO_MANY_REQUESTS, msg);
     }
 }
