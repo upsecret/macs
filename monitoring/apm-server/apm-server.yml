@@ -1,0 +1,41 @@
+# ============================================================
+# MACS APM Server Configuration
+# ============================================================
+
+apm-server:
+  host: "0.0.0.0:8200"
+
+  # ── RUM (Real User Monitoring) ─────────────────────────────
+  rum:
+    enabled: true
+    allow_origins: ["*"]
+    allow_headers: ["Content-Type", "Authorization"]
+
+  # ── Rate Limits ────────────────────────────────────────────
+  max_event_size: 307200   # 300KB
+
+# ── Elasticsearch Output ─────────────────────────────────────
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  username: elastic
+  password: elastic_password
+  indices:
+    - index: "apm-%{[observer.version]}-onboarding-%{+yyyy.MM.dd}"
+      when.contains:
+        processor.event: "onboarding"
+    - index: "apm-%{[observer.version]}-error-%{+yyyy.MM.dd}"
+      when.contains:
+        processor.event: "error"
+    - index: "apm-%{[observer.version]}-span-%{+yyyy.MM.dd}"
+      when.contains:
+        processor.event: "span"
+    - index: "apm-%{[observer.version]}-transaction-%{+yyyy.MM.dd}"
+      when.contains:
+        processor.event: "transaction"
+    - index: "apm-%{[observer.version]}-metric-%{+yyyy.MM.dd}"
+      when.contains:
+        processor.event: "metric"
+
+# ── Logging ──────────────────────────────────────────────────
+logging.level: info
+logging.to_stderr: true

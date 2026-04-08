@@ -1,0 +1,41 @@
+server:
+  port: 9000
+
+spring:
+  application:
+    name: auth-server
+  r2dbc:
+    url: r2dbc:oracle://oracle:1521/FREEPDB1
+    username: macs
+    password: macs_password
+
+jwt:
+  secret: macs-jwt-secret-key-for-development-only-change-in-production
+  expiration: 3600
+
+  data:
+    redis:
+      host: redis
+      port: 6379
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
+
+otel:
+  exporter:
+    otlp:
+      endpoint: http://otel-collector:4317

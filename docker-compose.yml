@@ -1,0 +1,126 @@
+# ============================================================
+# MACS System – Full Stack (Infra + Applications)
+#
+# 실행:
+#   전체:       docker compose up -d
+#   인프라만:   docker compose -f docker-compose.infra.yml up -d
+#   앱만:       docker compose up -d config-server auth-server gateway-service portal
+#   빌드+실행:  docker compose up -d --build
+# ============================================================
+
+include:
+  - docker-compose.infra.yml
+
+services:
+
+  # ── Config Server ──────────────────────────────────────────
+  config-server:
+    build:
+      context: .
+      dockerfile: config-server/Dockerfile
+    container_name: macs-config-server
+    ports:
+      - "8888:8888"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker,jdbc
+      SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle:1521/FREEPDB1
+      SPRING_DATASOURCE_USERNAME: macs
+      SPRING_DATASOURCE_PASSWORD: macs_password
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+    depends_on:
+      oracle:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:8888/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    networks:
+      - macs-network
+
+  # ── Auth Server ────────────────────────────────────────────
+  auth-server:
+    build:
+      context: .
+      dockerfile: auth-server/Dockerfile
+    container_name: macs-auth-server
+    ports:
+      - "9000:9000"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_R2DBC_URL: r2dbc:oracle://oracle:1521/FREEPDB1
+      SPRING_R2DBC_USERNAME: macs
+      SPRING_R2DBC_PASSWORD: macs_password
+      SPRING_DATA_REDIS_HOST: redis
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+    depends_on:
+      oracle:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:9000/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - macs-network
+
+  # ── Gateway Service ────────────────────────────────────────
+  gateway-service:
+    build:
+      context: .
+      dockerfile: gateway-service/Dockerfile
+    container_name: macs-gateway-service
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://config-server:8888"
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+    depends_on:
+      config-server:
+        condition: service_healthy
+      auth-server:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - macs-network
+
+  # ── Portal (React) ────────────────────────────────────────
+  portal:
+    build:
+      context: ./portal
+      dockerfile: Dockerfile
+    container_name: macs-portal
+    ports:
+      - "3000:3000"
+    depends_on:
+      gateway-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - macs-network

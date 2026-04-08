@@ -1,0 +1,24 @@
+# ============================================================
+# MACS Kibana Configuration
+# ============================================================
+
+server.host: "0.0.0.0"
+server.port: 5601
+server.name: macs-kibana
+
+# ── Elasticsearch ────────────────────────────────────────────
+elasticsearch.hosts: ["http://elasticsearch:9200"]
+elasticsearch.username: kibana_system
+elasticsearch.password: elastic_password
+
+# ── Encryption Keys ─────────────────────────────────────────
+xpack.encryptedSavedObjects.encryptionKey: "macs-kibana-encryption-key-min32chars!"
+xpack.reporting.encryptionKey: "macs-kibana-reporting-key-min32chars!"
+xpack.security.encryptionKey: "macs-kibana-security-key-min32chars!!"
+
+# ── Fleet / Elastic Agent ────────────────────────────────────
+xpack.fleet.enabled: true
+xpack.fleet.agents.elasticsearch.hosts: ["http://elasticsearch:9200"]
+
+# ── Logging ──────────────────────────────────────────────────
+logging.root.level: warn

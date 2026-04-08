@@ -1,0 +1,103 @@
+# ============================================================
+# MACS Elastic Agent – Standalone Mode
+# Docker 컨테이너 메트릭 + Spring Boot 로그 수집
+# ============================================================
+
+outputs:
+  default:
+    type: elasticsearch
+    hosts: ["http://elasticsearch:9200"]
+    username: elastic
+    password: elastic_password
+
+# ── Docker 컨테이너 메트릭 수집 ──────────────────────────────
+inputs:
+  # 1. Docker 컨테이너 메트릭 (CPU, Memory, Network, Disk I/O)
+  - id: docker-metrics
+    type: docker/metrics
+    use_output: default
+    data_stream:
+      namespace: macs
+    streams:
+      - data_stream:
+          dataset: docker.container
+          type: metrics
+        metricsets: ["container"]
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+      - data_stream:
+          dataset: docker.cpu
+          type: metrics
+        metricsets: ["cpu"]
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+      - data_stream:
+          dataset: docker.memory
+          type: metrics
+        metricsets: ["memory"]
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+      - data_stream:
+          dataset: docker.network
+          type: metrics
+        metricsets: ["network"]
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+      - data_stream:
+          dataset: docker.diskio
+          type: metrics
+        metricsets: ["diskio"]
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 10s
+      - data_stream:
+          dataset: docker.info
+          type: metrics
+        metricsets: ["info"]
+        hosts: ["unix:///var/run/docker.sock"]
+        period: 30s
+
+  # 2. Docker 컨테이너 로그 수집 (stdout/stderr)
+  - id: docker-logs
+    type: filestream
+    use_output: default
+    data_stream:
+      namespace: macs
+    streams:
+      - data_stream:
+          dataset: docker.container_logs
+          type: logs
+        paths:
+          - "/var/lib/docker/containers/*/*.log"
+        parsers:
+          - container:
+              stream: all
+              format: docker
+        processors:
+          - add_docker_metadata:
+              host: "unix:///var/run/docker.sock"
+
+  # 3. Spring Boot 서비스 HTTP 메트릭 (Actuator /health 폴링)
+  - id: spring-health
+    type: http/metrics
+    use_output: default
+    data_stream:
+      namespace: macs
+    streams:
+      - data_stream:
+          dataset: spring.health
+          type: metrics
+        metricsets: ["json"]
+        hosts:
+          - "http://gateway-service:8080/actuator/health"
+          - "http://config-server:8888/actuator/health"
+          - "http://auth-server:9000/actuator/health"
+        period: 30s
+        namespace: spring_health
+
+# ── Agent 모니터링 ───────────────────────────────────────────
+agent:
+  monitoring:
+    enabled: true
+    logs: true
+    metrics: true
+    use_output: default

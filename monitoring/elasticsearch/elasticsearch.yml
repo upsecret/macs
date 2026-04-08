@@ -1,0 +1,23 @@
+# ============================================================
+# MACS Elasticsearch Configuration
+# ============================================================
+
+cluster.name: macs-cluster
+node.name: macs-es-01
+
+network.host: 0.0.0.0
+http.port: 9200
+transport.port: 9300
+
+discovery.type: single-node
+
+# ── Security ─────────────────────────────────────────────────
+xpack.security.enabled: true
+xpack.security.http.ssl.enabled: false
+xpack.security.transport.ssl.enabled: false
+
+# ── Memory ───────────────────────────────────────────────────
+bootstrap.memory_lock: false
+
+# ── APM Data ─────────────────────────────────────────────────
+xpack.apm_data.enabled: true
