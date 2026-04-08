@@ -15,16 +15,45 @@ spring:
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
       routes:
-        # ── Service Routes (defaults, overridden by config-server) ──
+        # ── Service Routes (기본 유량: 50/s, burst 100) ──
         - id: auth-route
           uri: http://auth-server:9000
           predicates:
             - Path=/api/auth/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 50
+                redis-rate-limiter.burstCapacity: 100
+                key-resolver: "#{@headerKeyResolver}"
+                deny-empty-key: false
         - id: config-route
           uri: http://config-server:8888
           predicates:
             - Path=/api/config/**
-        # ── Swagger Aggregation Routes ──
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 50
+                redis-rate-limiter.burstCapacity: 100
+                key-resolver: "#{@headerKeyResolver}"
+                deny-empty-key: false
+
+        # ── QA Service (엄격한 유량 제어: 1 req/s, burst 3) ──
+        - id: qa-route
+          uri: http://qa-service:9100
+          predicates:
+            - Path=/api/qa/**
+          filters:
+            - StripPrefix=2
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 1
+                redis-rate-limiter.burstCapacity: 3
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@headerKeyResolver}"
+
+        # ── Swagger Aggregation ──
         - id: auth-api-docs
           uri: http://auth-server:9000
           predicates:
@@ -37,13 +66,6 @@ spring:
             - Path=/v3/api-docs/config-server
           filters:
             - RewritePath=/v3/api-docs/config-server, /v3/api-docs
-        # ── QA Service ──
-        - id: qa-route
-          uri: http://qa-service:9100
-          predicates:
-            - Path=/api/qa/**
-          filters:
-            - StripPrefix=2
         - id: qa-api-docs
           uri: http://qa-service:9100
           predicates:
@@ -57,18 +79,6 @@ spring:
       port: 6379
   kafka:
     bootstrap-servers: kafka:29092
-
-# ── Rate Limit ───────────────────────────────────────────────
-gateway:
-  rate-limit:
-    capacity: 100
-    refill-tokens: 100
-    refill-duration: PT1M
-    overrides:
-      - path-prefix: /api/qa
-        capacity: 3
-        refill-tokens: 3
-        refill-duration: PT10S
 
 # ── Actuator ─────────────────────────────────────────────────
 management:
