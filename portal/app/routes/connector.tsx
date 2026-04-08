@@ -34,6 +34,7 @@ export default function Connector() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [selectedConnector, setSelectedConnector] = useState<string | null>(null);
+  const [swaggerSize, setSwaggerSize] = useState<"half" | "full">("half");
 
   const fetchConnectors = useCallback(async () => {
     setLoading(true);
@@ -245,9 +246,19 @@ export default function Connector() {
           {/* Swagger 패널 */}
           {selected?.swaggerUrl && (
             <div
-              className="w-[480px] shrink-0 bg-white rounded-lg shadow overflow-hidden flex flex-col"
-              style={{ height: "calc(100vh - 180px)" }}
+              className={[
+                "shrink-0 bg-white rounded-lg shadow overflow-hidden flex flex-col transition-all duration-200",
+                swaggerSize === "full"
+                  ? "fixed inset-4 z-50"
+                  : "w-1/2 min-w-[480px]",
+              ].join(" ")}
+              style={swaggerSize === "half" ? { height: "calc(100vh - 180px)" } : undefined}
             >
+              {/* 풀스크린 배경 딤 */}
+              {swaggerSize === "full" && (
+                <div className="fixed inset-0 bg-black/30 -z-10" onClick={() => setSwaggerSize("half")} />
+              )}
+
               <div className="bg-header px-4 py-3 border-b border-gray-200 flex items-center justify-between shrink-0">
                 <div>
                   <h3 className="text-sm font-semibold text-gray-800">API 문서</h3>
@@ -255,12 +266,40 @@ export default function Connector() {
                     {selected.systemName} / {selected.connectorName}
                   </p>
                 </div>
-                <button
-                  onClick={() => setSelectedConnector(null)}
-                  className="text-gray-400 hover:text-gray-600 text-lg leading-none"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-1">
+                  {/* 반반 보기 */}
+                  <button
+                    onClick={() => setSwaggerSize("half")}
+                    title="반반 보기"
+                    className={`p-1.5 rounded transition-colors ${swaggerSize === "half" ? "bg-primary/10 text-primary" : "text-gray-400 hover:text-gray-600"}`}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <rect x="1" y="2" width="14" height="12" rx="1.5" />
+                      <line x1="8" y1="2" x2="8" y2="14" />
+                    </svg>
+                  </button>
+                  {/* 전체 보기 */}
+                  <button
+                    onClick={() => setSwaggerSize("full")}
+                    title="전체 화면"
+                    className={`p-1.5 rounded transition-colors ${swaggerSize === "full" ? "bg-primary/10 text-primary" : "text-gray-400 hover:text-gray-600"}`}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <rect x="1" y="2" width="14" height="12" rx="1.5" />
+                    </svg>
+                  </button>
+                  {/* 닫기 */}
+                  <button
+                    onClick={() => { setSelectedConnector(null); setSwaggerSize("half"); }}
+                    className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
+                    title="닫기"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <line x1="4" y1="4" x2="12" y2="12" />
+                      <line x1="12" y1="4" x2="4" y2="12" />
+                    </svg>
+                  </button>
+                </div>
               </div>
               <iframe
                 src={`http://localhost:8080/webjars/swagger-ui/index.html?configUrl=/v3/api-docs/swagger-config&urls.primaryName=${encodeURIComponent("qa-service")}`}
