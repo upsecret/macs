@@ -2,8 +2,7 @@ rootProject.name = "macs-system"
 
 include(
     "gateway-service",
-    "config-server",
+    "admin-server",
     "auth-server",
-    "qa-service",
     "shared:common-logging"
 )

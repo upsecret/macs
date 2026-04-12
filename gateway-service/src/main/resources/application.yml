@@ -5,7 +5,7 @@ spring:
   application:
     name: gateway-service
   config:
-    import: "optional:configserver:http://config-server:8888"
+    import: "optional:configserver:http://admin-server:8888"
   cloud:
     config:
       fail-fast: false
@@ -27,10 +27,10 @@ spring:
                 redis-rate-limiter.burstCapacity: 100
                 key-resolver: "#{@headerKeyResolver}"
                 deny-empty-key: false
-        - id: config-route
-          uri: http://config-server:8888
+        - id: admin-route
+          uri: http://admin-server:8888
           predicates:
-            - Path=/api/config/**
+            - Path=/api/config/**,/api/admin/**
           filters:
             - name: RequestRateLimiter
               args:
@@ -38,20 +38,9 @@ spring:
                 redis-rate-limiter.burstCapacity: 100
                 key-resolver: "#{@headerKeyResolver}"
                 deny-empty-key: false
-
-        # ── QA Service (엄격한 유량 제어: 1 req/s, burst 3) ──
-        - id: qa-route
-          uri: http://qa-service:9100
-          predicates:
-            - Path=/api/qa/**
-          filters:
-            - StripPrefix=2
-            - name: RequestRateLimiter
+            - name: AuthValidation
               args:
-                redis-rate-limiter.replenishRate: 1
-                redis-rate-limiter.burstCapacity: 3
-                redis-rate-limiter.requestedTokens: 1
-                key-resolver: "#{@headerKeyResolver}"
+                connector: portal
 
         # ── Swagger Aggregation ──
         - id: auth-api-docs
@@ -60,18 +49,12 @@ spring:
             - Path=/v3/api-docs/auth-server
           filters:
             - RewritePath=/v3/api-docs/auth-server, /v3/api-docs
-        - id: config-api-docs
-          uri: http://config-server:8888
+        - id: admin-api-docs
+          uri: http://admin-server:8888
           predicates:
-            - Path=/v3/api-docs/config-server
+            - Path=/v3/api-docs/admin-server
           filters:
-            - RewritePath=/v3/api-docs/config-server, /v3/api-docs
-        - id: qa-api-docs
-          uri: http://qa-service:9100
-          predicates:
-            - Path=/v3/api-docs/qa-service
-          filters:
-            - RewritePath=/v3/api-docs/qa-service, /v3/api-docs
+            - RewritePath=/v3/api-docs/admin-server, /v3/api-docs
 
   data:
     redis:
@@ -101,10 +84,8 @@ springdoc:
     urls:
       - name: auth-server
         url: /v3/api-docs/auth-server
-      - name: config-server
-        url: /v3/api-docs/config-server
-      - name: qa-service
-        url: /v3/api-docs/qa-service
+      - name: admin-server
+        url: /v3/api-docs/admin-server
 
 # ── OTel ─────────────────────────────────────────────────────
 otel:

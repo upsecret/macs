@@ -1,37 +1,23 @@
+export interface PermissionEntry {
+  system: string;
+  connector: string;
+  role: string;
+}
+
 export interface AuthResponse {
   token: string;
-  system: string;
+  app_name: string;
   employee_number: string;
-  group: string;
-  allowed_resources_list: string[];
+  permissions: PermissionEntry[];
 }
 
-export interface SystemConnector {
-  systemName: string;
-  connectorName: string;
-  description: string;
-}
-
-export interface GroupInfo {
-  groupId: number;
-  systemName: string;
-  groupName: string;
-}
-
-export interface GroupMember {
-  groupId: number;
+export interface Permission {
+  appName: string;
   employeeNumber: string;
-}
-
-export interface GroupResource {
-  groupId: number;
-  resourceName: string;
-}
-
-export interface UserResource {
-  employeeNumber: string;
-  systemName: string;
-  resourceName: string;
+  system: string;
+  connector: string;
+  role: string;
+  createdAt: string;
 }
 
 export interface GatewayDefinition {
@@ -53,4 +39,21 @@ export interface ConfigProperty {
   label: string;
   propKey: string;
   propValue: string;
+}
+
+export type ConnectorType = "agent" | "api" | "mcp";
+
+export interface Connector {
+  id: string;
+  title: string;
+  description: string | null;
+  type: ConnectorType;
+  active: boolean;
+  uri: string | null;
+  createdAt: string;
+}
+
+export interface AvailableRoute {
+  id: string;
+  uri: string;
 }

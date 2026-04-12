@@ -1,0 +1,57 @@
+server:
+  port: 8888
+
+spring:
+  application:
+    name: admin-server
+  profiles:
+    active: jdbc
+
+  datasource:
+    url: jdbc:oracle:thin:@oracle:1521/FREEPDB1
+    username: macs
+    password: macs_password
+    driver-class-name: oracle.jdbc.OracleDriver
+
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.OracleDialect
+        default_schema: MACS
+    open-in-view: false
+
+  cloud:
+    config:
+      server:
+        jdbc:
+          sql: "SELECT PROP_KEY, PROP_VALUE from MACS.PROPERTIES where APPLICATION=? and PROFILE=? and LABEL=?"
+          order: 1
+    bus:
+      enabled: true
+
+  kafka:
+    bootstrap-servers: kafka:29092
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,busrefresh,info,prometheus,env
+  endpoint:
+    health:
+      show-details: always
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
+
+otel:
+  exporter:
+    otlp:
+      endpoint: http://otel-collector:4317

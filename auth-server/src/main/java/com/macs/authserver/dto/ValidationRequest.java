@@ -5,8 +5,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "Token validation request")
 public record ValidationRequest(
-        @JsonProperty("request_app")
-        @Schema(description = "Requested resource path", example = "/api/v1/users")
-        String requestApp
+        @JsonProperty("connector")
+        @Schema(description = "Logical connector the caller is trying to access", example = "portal")
+        String connector
 ) {
 }

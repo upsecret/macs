@@ -1,13 +1,9 @@
 package com.macs.authserver.service;
 
 import com.macs.authserver.config.JwtProperties;
-import com.macs.authserver.domain.GroupResource;
-import com.macs.authserver.domain.UserResource;
+import com.macs.authserver.dto.PermissionEntry;
 import com.macs.authserver.dto.TokenRequest;
 import com.macs.authserver.dto.TokenResponse;
-import com.macs.authserver.repository.GroupInfoRepository;
-import com.macs.authserver.repository.GroupResourceRepository;
-import com.macs.authserver.repository.UserResourceRepository;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.http.HttpStatus;
@@ -17,67 +13,52 @@ import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 @Service
 public class AuthTokenService {
 
-    private final GroupInfoRepository groupInfoRepository;
-    private final GroupResourceRepository groupResourceRepository;
-    private final UserResourceRepository userResourceRepository;
+    private final AdminPermissionClient adminPermissionClient;
     private final JwtProperties jwtProperties;
 
-    public AuthTokenService(GroupInfoRepository groupInfoRepository,
-                            GroupResourceRepository groupResourceRepository,
-                            UserResourceRepository userResourceRepository,
+    public AuthTokenService(AdminPermissionClient adminPermissionClient,
                             JwtProperties jwtProperties) {
-        this.groupInfoRepository = groupInfoRepository;
-        this.groupResourceRepository = groupResourceRepository;
-        this.userResourceRepository = userResourceRepository;
+        this.adminPermissionClient = adminPermissionClient;
         this.jwtProperties = jwtProperties;
     }
 
     public Mono<TokenResponse> issueToken(TokenRequest request) {
-        String systemName = request.appName();
+        String appName = request.appName();
         String empNo = request.employeeNumber();
 
-        return groupInfoRepository.findBySystemNameAndEmployeeNumber(systemName, empNo)
-                .next()
-                .switchIfEmpty(Mono.error(new ResponseStatusException(
-                        HttpStatus.FORBIDDEN, "No group membership for " + empNo + " in " + systemName)))
-                .flatMap(group -> {
-                    Mono<List<String>> groupRes = groupResourceRepository
-                            .findByGroupId(group.getGroupId())
-                            .map(GroupResource::resourceName)
-                            .collectList();
-                    Mono<List<String>> userRes = userResourceRepository
-                            .findByEmployeeNumberAndSystemName(empNo, systemName)
-                            .map(UserResource::resourceName)
-                            .collectList();
-
-                    return Mono.zip(groupRes, userRes).map(tuple -> {
-                        Set<String> merged = new LinkedHashSet<>(tuple.getT1());
-                        merged.addAll(tuple.getT2());
-                        List<String> allowed = new ArrayList<>(merged);
-
-                        String token = generateJwt(systemName, empNo, group.getGroupName(), allowed);
-                        return new TokenResponse(token, systemName, empNo, group.getGroupName(), allowed);
-                    });
+        return adminPermissionClient.fetch(appName, empNo)
+                .flatMap(permissions -> {
+                    if (permissions.isEmpty()) {
+                        return Mono.error(new ResponseStatusException(
+                                HttpStatus.FORBIDDEN,
+                                "No permissions for " + empNo + " in " + appName));
+                    }
+                    String token = generateJwt(appName, empNo, permissions);
+                    return Mono.just(new TokenResponse(token, appName, empNo, permissions));
                 });
     }
 
-    private String generateJwt(String system, String empNo, String group, List<String> allowed) {
+    private String generateJwt(String appName, String empNo, List<PermissionEntry> permissions) {
         long now = System.currentTimeMillis();
+        List<Map<String, String>> permissionsClaim = permissions.stream()
+                .map(p -> Map.of(
+                        "system", p.system(),
+                        "connector", p.connector(),
+                        "role", p.role()))
+                .toList();
+
         return Jwts.builder()
                 .subject(empNo)
-                .claim("system", system)
+                .claim("app_name", appName)
                 .claim("employee_number", empNo)
-                .claim("group", group)
-                .claim("allowed_resources_list", allowed)
+                .claim("permissions", permissionsClaim)
                 .issuedAt(new Date(now))
                 .expiration(new Date(now + jwtProperties.expiration() * 1000L))
                 .signWith(getSigningKey())

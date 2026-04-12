@@ -16,10 +16,9 @@ export function useAuth() {
 
     store.setAuth({
       token: data.token,
-      appName: data.system,
+      appName: data.app_name,
       employeeNumber: data.employee_number,
-      group: data.group,
-      allowedResourcesList: data.allowed_resources_list,
+      permissions: data.permissions ?? [],
     });
 
     return data;
@@ -31,11 +30,10 @@ export function useAuth() {
     token: store.token,
     appName: store.appName,
     employeeNumber: store.employeeNumber,
-    group: store.group,
-    allowedResourcesList: store.allowedResourcesList,
+    permissions: store.permissions,
     isAuthenticated: store.isAuthenticated(),
-    isAllowed: store.isAllowed,
-    defaultPath: getDefaultPath(store.group ?? "user"),
+    isAllowedConnector: store.isAllowedConnector,
+    defaultPath: getDefaultPath(),
     login,
     logout,
   };

@@ -20,7 +20,7 @@ receivers:
           static_configs:
             - targets:
                 - "gateway-service:8080"
-                - "config-server:8888"
+                - "admin-server:8888"
                 - "auth-server:9000"
               labels:
                 env: "dev"

@@ -24,16 +24,8 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const data = await login("portal", employeeNumber.trim());
-      // 로그인 성공 → 그룹별 기본 경로로 이동
-      const { group } = data;
-      const groupDefaultPaths: Record<string, string> = {
-        admin: "/route-config",
-        operator: "/route-config",
-        developer: "/route-config",
-        user: "/connector",
-      };
-      navigate(groupDefaultPaths[group] ?? "/connector", { replace: true });
+      await login("portal", employeeNumber.trim());
+      navigate("/connector", { replace: true });
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "로그인에 실패했습니다.";

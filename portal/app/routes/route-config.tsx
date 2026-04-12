@@ -109,6 +109,11 @@ const FILTER_CATALOG: Record<string, DefCatalogEntry> = {
       { key: "strategy", label: "Strategy", placeholder: "RETAIN_UNIQUE" },
     ],
   },
+  AuthValidation: {
+    label: "AuthValidation",
+    description: "auth-server 토큰 검증 — 해당 route id에 대한 사용자 권한 확인",
+    args: [],
+  },
 };
 
 const PREDICATE_CATALOG: Record<string, DefCatalogEntry> = {
@@ -360,6 +365,7 @@ export default function RouteConfig() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [form, setForm] = useState<RouteDefinition>(EMPTY_FORM);
+  const [registerSwagger, setRegisterSwagger] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -390,11 +396,13 @@ export default function RouteConfig() {
   /* ── 모달 ──────────────────────────────────────────────── */
   const openCreate = () => {
     setForm(EMPTY_FORM);
+    setRegisterSwagger(true);
     setModalMode("create");
     setModalOpen(true);
   };
   const openEdit = (route: RouteDefinition) => {
     setForm({ ...route });
+    setRegisterSwagger(true);
     setModalMode("edit");
     setModalOpen(true);
   };
@@ -409,6 +417,7 @@ export default function RouteConfig() {
       uri: form.uri.trim(),
       predicates: form.predicates.filter((p) => p.name),
       filters: form.filters.filter((f) => f.name),
+      registerSwagger,
     };
     try {
       if (modalMode === "create") {
@@ -723,6 +732,24 @@ export default function RouteConfig() {
                     />
                   ))}
                 </div>
+              </div>
+
+              {/* Swagger 자동 등록 */}
+              <div className="flex items-start gap-2 pt-2 border-t border-gray-100">
+                <input
+                  id="register-swagger"
+                  type="checkbox"
+                  checked={registerSwagger}
+                  onChange={(e) => setRegisterSwagger(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 text-primary rounded focus:ring-2 focus:ring-primary/40"
+                />
+                <label htmlFor="register-swagger" className="text-sm text-gray-700 leading-tight">
+                  <span className="font-medium">Gateway Swagger에 등록</span>
+                  <br />
+                  <span className="text-xs text-gray-500">
+                    동반 /v3/api-docs/{`{id}`} 라우트와 springdoc URL을 자동 추가. backing service가 OpenAPI를 제공하지 않으면 해제하세요.
+                  </span>
+                </label>
               </div>
             </div>
 

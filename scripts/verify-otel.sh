@@ -74,7 +74,7 @@ fi
 section "3. Trace 데이터 검증"
 # ============================================================
 
-for svc in "gateway-service" "config-server" "auth-server"; do
+for svc in "gateway-service" "admin-server" "auth-server"; do
   SEARCH=$(curl -s -u "$ES_AUTH" \
     "$ES/apm-*/_search?size=0&q=service.name:$svc" 2>/dev/null || echo '{"hits":{"total":{"value":0}}}')
   COUNT=$(echo "$SEARCH" | grep -o '"value":[0-9]*' | head -1 | cut -d: -f2 || echo "0")
@@ -99,7 +99,7 @@ fi
 section "4. 로그 JSON 포맷 + traceId 확인"
 # ============================================================
 
-for container in "macs-gateway-service" "macs-config-server" "macs-auth-server"; do
+for container in "macs-gateway-service" "macs-admin-server" "macs-auth-server"; do
   SVC_SHORT="${container#macs-}"
 
   # JSON 로그 확인
@@ -142,7 +142,7 @@ fi
 section "6. Prometheus 스크래핑 확인"
 # ============================================================
 
-for target in "gateway-service:8080" "config-server:8888" "auth-server:9000"; do
+for target in "gateway-service:8080" "admin-server:8888" "auth-server:9000"; do
   SVC="${target%%:*}"
   PORT="${target##*:}"
   PROM=$(curl -s "http://localhost:$PORT/actuator/prometheus" 2>/dev/null | head -5 || echo "")

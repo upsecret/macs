@@ -1,13 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { isMenuAllowed } from "../utils/permissions";
+import type { PermissionEntry } from "../types";
 
 interface AuthPayload {
   token: string;
   appName: string;
   employeeNumber: string;
-  group: string;
-  allowedResourcesList: string[];
+  permissions: PermissionEntry[];
 }
 
 interface AuthState {
@@ -15,8 +14,7 @@ interface AuthState {
   token: string | null;
   appName: string | null;
   employeeNumber: string | null;
-  group: string | null;
-  allowedResourcesList: string[];
+  permissions: PermissionEntry[];
 
   /* ── actions ───────────────────────────────────────────── */
   setAuth: (payload: AuthPayload) => void;
@@ -24,18 +22,19 @@ interface AuthState {
 
   /* ── derived helpers ───────────────────────────────────── */
   isAuthenticated: () => boolean;
-  isAllowed: (menuKey: string) => boolean;
+  isAllowedConnector: (connectorId: string) => boolean;
+  getRole: () => string | null;
+  isAdmin: () => boolean;
 }
 
 const INITIAL: Pick<
   AuthState,
-  "token" | "appName" | "employeeNumber" | "group" | "allowedResourcesList"
+  "token" | "appName" | "employeeNumber" | "permissions"
 > = {
   token: null,
   appName: null,
   employeeNumber: null,
-  group: null,
-  allowedResourcesList: [],
+  permissions: [],
 };
 
 export const useAuthStore = create<AuthState>()(
@@ -48,19 +47,24 @@ export const useAuthStore = create<AuthState>()(
           token: payload.token,
           appName: payload.appName,
           employeeNumber: payload.employeeNumber,
-          group: payload.group,
-          allowedResourcesList: payload.allowedResourcesList,
+          permissions: payload.permissions,
         }),
 
       logout: () => set(INITIAL),
 
       isAuthenticated: () => !!get().token,
 
-      isAllowed: (menuKey: string) => {
-        const { group } = get();
-        if (!group) return false;
-        return isMenuAllowed(group, menuKey);
+      isAllowedConnector: (connectorId: string) =>
+        get().permissions.some((p) => p.connector === connectorId),
+
+      getRole: () => {
+        const perms = get().permissions;
+        if (perms.some((p) => p.role === "admin")) return "admin";
+        if (perms.length > 0) return perms[0].role;
+        return null;
       },
+
+      isAdmin: () => get().permissions.some((p) => p.role === "admin"),
     }),
     { name: "macs-auth" },
   ),

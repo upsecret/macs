@@ -13,7 +13,7 @@
 set -euo pipefail
 
 GATEWAY="http://localhost:8080"
-CONFIG="http://localhost:8888"
+ADMIN="http://localhost:8888"
 AUTH="http://localhost:9000"
 ES="http://localhost:9200"
 KIBANA="http://localhost:5601"
@@ -80,7 +80,7 @@ section "1. 인프라 서비스 헬스체크"
 echo "  Checking infrastructure services..."
 
 # Oracle
-check_status "Oracle (via config-server datasource)" "$CONFIG/actuator/health" "200"
+check_status "Oracle (via admin-server datasource)" "$ADMIN/actuator/health" "200"
 
 # Redis
 REDIS_PONG=$(docker exec macs-redis redis-cli ping 2>/dev/null || echo "FAIL")
@@ -125,18 +125,18 @@ check_status "OTel Collector health" "http://localhost:13133/" "200"
 section "2. 애플리케이션 서비스 헬스체크"
 # ============================================================
 
-check_status "Config Server /actuator/health" "$CONFIG/actuator/health"
+check_status "Admin Server /actuator/health" "$ADMIN/actuator/health"
 check_status "Auth Server /actuator/health"   "$AUTH/actuator/health"
 check_status "Gateway /actuator/health"       "$GATEWAY/actuator/health"
 check_status "Portal index"                   "$PORTAL/"
 
 # Prometheus 엔드포인트
-check_status "Config Server /actuator/prometheus" "$CONFIG/actuator/prometheus"
+check_status "Admin Server /actuator/prometheus" "$ADMIN/actuator/prometheus"
 check_status "Auth Server /actuator/prometheus"   "$AUTH/actuator/prometheus"
 check_status "Gateway /actuator/prometheus"       "$GATEWAY/actuator/prometheus"
 
 # ============================================================
-section "3. Config Server API 검증"
+section "3. Admin Server API 검증"
 # ============================================================
 
 # Properties 조회
@@ -159,12 +159,12 @@ else
   fail "GET /api/config/routes" "no routes found"
 fi
 
-# Config Server native endpoint
-CONFIG_RESP=$(curl -s "$CONFIG/gateway-service/default/main" 2>/dev/null || echo "{}")
+# Spring Cloud Config native endpoint (admin-server)
+CONFIG_RESP=$(curl -s "$ADMIN/gateway-service/default/main" 2>/dev/null || echo "{}")
 if echo "$CONFIG_RESP" | grep -q "propertySources"; then
-  pass "Config Server /gateway-service/default/main → properties served"
+  pass "Admin Server /gateway-service/default/main → properties served"
 else
-  skip "Config Server native endpoint"
+  skip "Admin Server native config endpoint"
 fi
 
 # ============================================================

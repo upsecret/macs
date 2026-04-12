@@ -11,8 +11,6 @@ public record ValidationResponse(
         String appName,
 
         @JsonProperty("employee_number")
-        String employeeNumber,
-
-        String group
+        String employeeNumber
 ) {
 }

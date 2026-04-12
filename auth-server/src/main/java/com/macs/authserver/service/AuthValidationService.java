@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class AuthValidationService {
@@ -39,25 +40,24 @@ public class AuthValidationService {
                 throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token");
             }
 
-            String system = claims.get("system", String.class);
+            String appName = claims.get("app_name", String.class);
             String employeeNumber = claims.get("employee_number", String.class);
-            String group = claims.get("group", String.class);
 
             @SuppressWarnings("unchecked")
-            List<String> allowedResources = claims.get("allowed_resources_list", List.class);
+            List<Map<String, String>> permissions =
+                    (List<Map<String, String>>) claims.get("permissions", List.class);
 
-            // 요청 커넥터가 allowed_resources_list에 포함되는지 확인
-            if (request.requestApp() != null && !request.requestApp().isBlank()) {
-                String requested = request.requestApp();
-                boolean hasAccess = allowedResources.contains(requested);
-                if (!hasAccess) {
+            String requiredConnector = request.connector();
+            if (requiredConnector != null && !requiredConnector.isBlank()) {
+                boolean allowed = permissions != null && permissions.stream()
+                        .anyMatch(p -> requiredConnector.equals(p.get("connector")));
+                if (!allowed) {
                     throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                            "Access denied to connector: " + requested
-                            + " (allowed: " + allowedResources + ")");
+                            "Access denied to connector: " + requiredConnector);
                 }
             }
 
-            return new ValidationResponse(true, system, employeeNumber, group);
+            return new ValidationResponse(true, appName, employeeNumber);
         });
     }
 

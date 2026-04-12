@@ -9,15 +9,12 @@ import java.util.List;
 public record TokenResponse(
         String token,
 
-        @JsonProperty("system")
-        String system,
+        @JsonProperty("app_name")
+        String appName,
 
         @JsonProperty("employee_number")
         String employeeNumber,
 
-        String group,
-
-        @JsonProperty("allowed_resources_list")
-        List<String> allowedResourcesList
+        List<PermissionEntry> permissions
 ) {
 }

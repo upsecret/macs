@@ -4,19 +4,14 @@ server:
 spring:
   application:
     name: auth-server
-  r2dbc:
-    url: r2dbc:oracle://oracle:1521/FREEPDB1
-    username: macs
-    password: macs_password
-
-jwt:
-  secret: macs-jwt-secret-key-for-development-only-change-in-production
-  expiration: 3600
-
   data:
     redis:
       host: redis
       port: 6379
+
+jwt:
+  secret: macs-jwt-secret-key-for-development-only-change-in-production
+  expiration: 3600
 
 management:
   endpoints:

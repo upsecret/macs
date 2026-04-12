@@ -89,7 +89,7 @@ inputs:
         metricsets: ["json"]
         hosts:
           - "http://gateway-service:8080/actuator/health"
-          - "http://config-server:8888/actuator/health"
+          - "http://admin-server:8888/actuator/health"
           - "http://auth-server:9000/actuator/health"
         period: 30s
         namespace: spring_health
