@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, AlertCircle } from "lucide-react";
+import { ChevronDown, ChevronRight, Info, Copy } from "lucide-react";
 import api from "../utils/api";
 import { useResource } from "../hooks/useResource";
 
@@ -94,6 +94,83 @@ function groupByTag(endpoints: Endpoint[]): Record<string, Endpoint[]> {
     }
   }
   return groups;
+}
+
+/* ── 게이트웨이 공통 헤더 안내 ──────────────────────────── */
+
+interface GatewayUsageNoticeProps {
+  connectorId: string;
+  /** 첫 번째 endpoint path (있으면 curl 예시에 사용) */
+  samplePath?: string;
+  /** 첫 번째 endpoint method (있으면 curl 예시에 사용) */
+  sampleMethod?: string;
+}
+
+function GatewayUsageNotice({ connectorId, samplePath, sampleMethod }: GatewayUsageNoticeProps) {
+  const path = samplePath ?? `/${connectorId}`;
+  const method = (sampleMethod ?? "get").toUpperCase();
+  const methodFlag = method === "GET" ? "" : ` -X ${method}`;
+
+  const curlSample = `curl${methodFlag} 'http://localhost:8080${path}' \\
+  -H 'app_name: portal' \\
+  -H 'employee_number: 2078432' \\
+  -H 'Authorization: Bearer <JWT>'   # AuthValidation 적용된 route 만`;
+
+  const copyCurl = () => {
+    navigator.clipboard.writeText(curlSample).then(
+      () => alert("curl 예시가 복사되었습니다."),
+      () => alert("복사 실패"),
+    );
+  };
+
+  return (
+    <div className="bg-info/5 border border-info/20 rounded-lg p-4">
+      <div className="flex items-start gap-3">
+        <Info size={18} className="text-info shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-semibold text-gray-900">게이트웨이 호출 시 공통 헤더</h3>
+          <p className="text-xs text-gray-600 mt-1">
+            아래 endpoint 들은 모두 <code className="text-[11px] font-mono">macs-gateway</code> 를 통해 호출되며,
+            전역 <code className="text-[11px] font-mono">HeaderValidationFilter</code> 가
+            요청에 다음 두 헤더가 없으면 <strong>HTTP 400</strong> 으로 거절합니다.
+          </p>
+          <ul className="mt-2 space-y-1 text-xs text-gray-700">
+            <li>
+              <code className="font-mono px-1.5 py-0.5 rounded bg-white border border-gray-200">app_name</code>
+              {" "}— 호출하는 client 식별자 (예: <code className="font-mono">portal</code>)
+            </li>
+            <li>
+              <code className="font-mono px-1.5 py-0.5 rounded bg-white border border-gray-200">employee_number</code>
+              {" "}— 사번 (예: <code className="font-mono">2078432</code>)
+            </li>
+            <li>
+              <code className="font-mono px-1.5 py-0.5 rounded bg-white border border-gray-200">Authorization: Bearer &lt;JWT&gt;</code>
+              {" "}— route 에 <code className="font-mono">AuthValidation</code> 필터가 붙은 경우만. 토큰은
+              {" "}<code className="font-mono">POST /api/auth/token</code> 에서 발급
+            </li>
+          </ul>
+
+          <div className="mt-3">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
+                curl 예시
+              </span>
+              <button
+                type="button"
+                onClick={copyCurl}
+                className="flex items-center gap-1 text-[11px] text-info hover:underline"
+              >
+                <Copy size={11} /> 복사
+              </button>
+            </div>
+            <pre className="bg-white border border-gray-200 rounded p-2 text-[11px] font-mono text-gray-700 whitespace-pre-wrap overflow-x-auto">
+{curlSample}
+            </pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /* ── 공통 코드 블록 ──────────────────────────────────────── */
@@ -251,10 +328,9 @@ export default function ApiDocsViewer({ connectorId }: Props) {
     [connectorId],
   );
 
-  const groups = useMemo(() => {
-    if (!doc) return {} as Record<string, Endpoint[]>;
-    return groupByTag(flatten(doc));
-  }, [doc]);
+  const endpoints = useMemo(() => (doc ? flatten(doc) : []), [doc]);
+  const groups = useMemo(() => groupByTag(endpoints), [endpoints]);
+  const sample = endpoints[0];
 
   if (loading) {
     return (
@@ -266,18 +342,15 @@ export default function ApiDocsViewer({ connectorId }: Props) {
 
   if (error || !doc) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-info/5 border border-info/20 rounded-lg p-6">
         <div className="flex items-start gap-3">
-          <AlertCircle size={18} className="text-error shrink-0 mt-0.5" />
+          <Info size={18} className="text-info shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-sm font-medium text-gray-900">API 문서를 가져올 수 없습니다.</p>
-            <p className="text-xs text-gray-500 mt-1">
-              {error ?? "응답이 비어있습니다."}
-            </p>
+            <p className="text-sm font-medium text-gray-900">API 문서 준비중입니다.</p>
             <button
               type="button"
               onClick={() => void refetch()}
-              className="mt-3 text-xs text-primary hover:underline"
+              className="mt-3 text-xs text-info hover:underline"
             >
               다시 시도
             </button>
@@ -333,6 +406,13 @@ export default function ApiDocsViewer({ connectorId }: Props) {
           </button>
         </div>
       </div>
+
+      {/* ── 게이트웨이 호출 가이드 (항상 표시) ───── */}
+      <GatewayUsageNotice
+        connectorId={connectorId}
+        samplePath={sample?.path}
+        sampleMethod={sample?.method}
+      />
 
       {/* ── Endpoints ───────────────────────── */}
       {tagNames.length === 0 ? (

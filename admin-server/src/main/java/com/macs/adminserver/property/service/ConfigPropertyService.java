@@ -10,6 +10,7 @@ import com.macs.adminserver.property.dto.RouteResponse;
 import com.macs.adminserver.property.repository.ConfigPropertyRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.cloud.bus.BusProperties;
 import org.springframework.cloud.bus.event.RefreshRemoteApplicationEvent;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpStatus;
@@ -45,11 +46,14 @@ public class ConfigPropertyService {
 
     private final ConfigPropertyRepository repository;
     private final ApplicationContext applicationContext;
+    private final BusProperties busProperties;
 
     public ConfigPropertyService(ConfigPropertyRepository repository,
-                                 ApplicationContext applicationContext) {
+                                 ApplicationContext applicationContext,
+                                 BusProperties busProperties) {
         this.repository = repository;
         this.applicationContext = applicationContext;
+        this.busProperties = busProperties;
     }
 
     // ── Property CRUD ───────────────────────────────────────────
@@ -174,10 +178,14 @@ public class ConfigPropertyService {
     // ── Refresh ─────────────────────────────────────────────────
 
     public void publishRefreshEvent() {
-        log.info("Publishing RefreshRemoteApplicationEvent destination=** origin={}",
-                applicationContext.getId());
+        // originService 는 BusProperties.getId() 를 써야 한다. applicationContext.getId() 로 만들면
+        // Spring Cloud Bus 의 acceptLocal 핸들러가 isFromSelf 검사에서 false 로 떨어져
+        // 이벤트가 outbound channel 로 안 흘러가고 다른 인스턴스에 도착하지 못한다.
+        // 표준 /actuator/busrefresh 엔드포인트도 동일하게 BusProperties.getId() 를 쓴다.
+        String origin = busProperties.getId();
+        log.info("Publishing RefreshRemoteApplicationEvent destination=** origin={}", origin);
         applicationContext.publishEvent(
-                new RefreshRemoteApplicationEvent(this, applicationContext.getId(), "**"));
+                new RefreshRemoteApplicationEvent(this, origin, "**"));
     }
 
     // ════════════════════════════════════════════════════════════

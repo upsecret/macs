@@ -100,12 +100,16 @@ CREATE TABLE CONNECTOR (
     TITLE        VARCHAR2(256)  NOT NULL,
     DESCRIPTION  VARCHAR2(1024),
     TYPE         VARCHAR2(16)   NOT NULL,
+    -- 소속 시스템. 권한 모델 v2 의 {client_app}:{system}:{connector}:{role} 중 system 과 일관.
+    SYSTEM       VARCHAR2(64)   DEFAULT 'common' NOT NULL,
     -- 선택: 외부 OpenAPI JSON endpoint 절대 URL. null 이면 gateway /v3/api-docs/{id} 사용.
     DOCS_URL     VARCHAR2(512),
     CREATED_AT   TIMESTAMP      DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT PK_CONNECTOR PRIMARY KEY (ID),
     CONSTRAINT CK_CONNECTOR_TYPE CHECK (TYPE IN ('agent','api','mcp'))
 );
+
+CREATE INDEX IDX_CONNECTOR_SYSTEM ON CONNECTOR (SYSTEM);
 
 -- ============================================================
 -- Admin Server – PERMISSION (user-to-route access grants)
@@ -125,11 +129,13 @@ CREATE INDEX IDX_PERMISSION_USER ON PERMISSION (APP_NAME, EMPLOYEE_NUMBER);
 -- ============================================================
 -- Sample Data – PROPERTIES  (idempotent; MERGE 로 재실행 안전)
 -- ============================================================
--- 공통 actuator exposure
+-- 공통 actuator exposure — gateway 가 routes 갱신/진단할 때 필요한 엔드포인트 모두 포함.
+-- 이 application/default 시드는 Spring Cloud Config 가 모든 서비스에 적용하므로
+-- 각 서비스의 local application.yml 의 include 리스트를 덮어쓴다.
 MERGE INTO PROPERTIES t USING (SELECT
     'application' APPLICATION,'default' PROFILE,'main' LABEL,
     'management.endpoints.web.exposure.include' PROP_KEY,
-    'health,info,prometheus' PROP_VALUE FROM dual) s
+    'health,info,prometheus,metrics,env,gateway,refresh,busrefresh' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);

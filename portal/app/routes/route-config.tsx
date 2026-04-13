@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import api from "../utils/api";
 import { useResource } from "../hooks/useResource";
 import type { RouteDefinition, GatewayDefinition } from "../types";
@@ -583,18 +584,22 @@ export default function RouteConfig() {
                     {route.order}
                   </td>
                   <td className="px-5 py-3.5 text-center">
-                    <div className="flex items-center justify-center gap-1">
+                    <div className="flex items-center justify-center gap-2">
                       <button
                         onClick={() => openEdit(route)}
-                        className="px-2.5 py-1 text-xs text-info hover:bg-info/10 rounded transition-colors"
+                        title="수정"
+                        aria-label={`${route.id} 수정`}
+                        className="p-2 text-info hover:bg-info/10 rounded-md transition-colors"
                       >
-                        수정
+                        <Pencil size={18} strokeWidth={2} />
                       </button>
                       <button
                         onClick={() => setDeleteTarget(route.id)}
-                        className="px-2.5 py-1 text-xs text-error hover:bg-error/10 rounded transition-colors"
+                        title="삭제"
+                        aria-label={`${route.id} 삭제`}
+                        className="p-2 text-error hover:bg-error/10 rounded-md transition-colors"
                       >
-                        삭제
+                        <Trash2 size={18} strokeWidth={2} />
                       </button>
                     </div>
                   </td>

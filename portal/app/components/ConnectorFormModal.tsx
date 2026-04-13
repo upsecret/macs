@@ -12,12 +12,16 @@ interface Props {
 
 const TYPE_OPTIONS: ConnectorType[] = ["agent", "api", "mcp"];
 
+// auth-manage 와 동일. free entry 허용하는 datalist hint.
+const COMMON_SYSTEMS = ["common", "rms", "fdc", "mes", "yms"];
+
 export default function ConnectorFormModal({ mode, initial, onClose, onSaved }: Props) {
   const [availableRoutes, setAvailableRoutes] = useState<AvailableRoute[]>([]);
   const [id, setId] = useState(initial?.id ?? "");
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [type, setType] = useState<ConnectorType>(initial?.type ?? "api");
+  const [system, setSystem] = useState(initial?.system ?? "common");
   const [docsUrl, setDocsUrl] = useState(initial?.docsUrl ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -40,6 +44,11 @@ export default function ConnectorFormModal({ mode, initial, onClose, onSaved }: 
       setError("id, title, type은 필수입니다.");
       return;
     }
+    const trimmedSystem = system.trim();
+    if (!trimmedSystem) {
+      setError("system 은 필수입니다.");
+      return;
+    }
     const trimmedDocsUrl = docsUrl.trim();
     if (trimmedDocsUrl && !/^https?:\/\//.test(trimmedDocsUrl)) {
       setError("API 문서 URL 은 http:// 또는 https:// 로 시작해야 합니다.");
@@ -52,6 +61,7 @@ export default function ConnectorFormModal({ mode, initial, onClose, onSaved }: 
         title: title.trim(),
         description: description.trim() || null,
         type,
+        system: trimmedSystem,
         docsUrl: trimmedDocsUrl || null,
       };
       if (mode === "create") {
@@ -145,18 +155,37 @@ export default function ConnectorFormModal({ mode, initial, onClose, onSaved }: 
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Type</label>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value as ConnectorType)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary"
-              required
-            >
-              {TYPE_OPTIONS.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Type</label>
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value as ConnectorType)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary"
+                required
+              >
+                {TYPE_OPTIONS.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">System</label>
+              <input
+                type="text"
+                list="connector-system-options"
+                value={system}
+                onChange={(e) => setSystem(e.target.value)}
+                placeholder="common"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary"
+                required
+              />
+              <datalist id="connector-system-options">
+                {COMMON_SYSTEMS.map((s) => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
+            </div>
           </div>
 
           <div>

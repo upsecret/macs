@@ -80,6 +80,7 @@ public class ConnectorService {
         if (request.title() == null || request.title().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "title is required");
         }
+        String system = normalizeSystem(request.system());
         if (repository.existsById(request.id())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Connector already registered for id: " + request.id());
@@ -96,10 +97,12 @@ public class ConnectorService {
                 request.title(),
                 request.description(),
                 request.type(),
+                system,
                 docsUrl));
 
-        log.info("Connector CREATED id={} type={} docsUrl={}",
-                saved.getId(), saved.getType(), saved.getDocsUrl() != null ? saved.getDocsUrl() : "default");
+        log.info("Connector CREATED id={} type={} system={} docsUrl={}",
+                saved.getId(), saved.getType(), saved.getSystem(),
+                saved.getDocsUrl() != null ? saved.getDocsUrl() : "default");
         return ConnectorResponse.of(saved, true, routeUriById.get(saved.getId()));
     }
 
@@ -112,17 +115,20 @@ public class ConnectorService {
         if (request.title() == null || request.title().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "title is required");
         }
+        String system = normalizeSystem(request.system());
         Connector entity = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Connector not found: " + id));
         entity.setTitle(request.title());
         entity.setDescription(request.description());
         entity.setType(request.type());
+        entity.setSystem(system);
         entity.setDocsUrl(normalizeDocsUrl(request.docsUrl()));
         Connector saved = repository.save(entity);
 
-        log.info("Connector UPDATED id={} type={} docsUrl={}",
-                saved.getId(), saved.getType(), saved.getDocsUrl() != null ? saved.getDocsUrl() : "default");
+        log.info("Connector UPDATED id={} type={} system={} docsUrl={}",
+                saved.getId(), saved.getType(), saved.getSystem(),
+                saved.getDocsUrl() != null ? saved.getDocsUrl() : "default");
         Map<String, String> routeUriById = currentRouteUriById();
         return ConnectorResponse.of(saved,
                 routeUriById.containsKey(saved.getId()),
@@ -186,6 +192,13 @@ public class ConnectorService {
 
     private static String stripTrailingSlash(String s) {
         return s.endsWith("/") ? s.substring(0, s.length() - 1) : s;
+    }
+
+    private String normalizeSystem(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "system is required");
+        }
+        return raw.trim();
     }
 
     private String normalizeDocsUrl(String raw) {

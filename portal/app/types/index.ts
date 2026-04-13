@@ -52,6 +52,8 @@ export interface Connector {
   title: string;
   description: string | null;
   type: ConnectorType;
+  /** 소속 시스템 (권한 모델 v2 의 system 과 일관). 예: common, rms, fdc */
+  system: string;
   active: boolean;
   uri: string | null;
   /** optional 외부 OpenAPI JSON URL. null 이면 gateway /v3/api-docs/{id} 사용 */
