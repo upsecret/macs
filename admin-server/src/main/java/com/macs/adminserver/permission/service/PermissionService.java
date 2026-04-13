@@ -7,6 +7,8 @@ import com.macs.adminserver.permission.dto.PermissionRequest;
 import com.macs.adminserver.permission.dto.PermissionResponse;
 import com.macs.adminserver.permission.dto.UserPermissionsResponse;
 import com.macs.adminserver.permission.repository.PermissionRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +19,8 @@ import java.util.List;
 @Service
 @Transactional(readOnly = true)
 public class PermissionService {
+
+    private static final Logger log = LoggerFactory.getLogger(PermissionService.class);
 
     private final PermissionRepository repository;
 
@@ -55,10 +59,14 @@ public class PermissionService {
         PermissionId id = new PermissionId(
                 req.appName(), req.employeeNumber(), req.system(), req.connector());
         if (repository.existsById(id)) {
+            log.warn("Permission grant CONFLICT app={} emp={} system={} connector={}",
+                    req.appName(), req.employeeNumber(), req.system(), req.connector());
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Permission already exists for this (user, system, connector)");
         }
         Permission saved = repository.save(new Permission(id, req.role()));
+        log.info("Permission GRANTED app={} emp={} system={} connector={} role={}",
+                req.appName(), req.employeeNumber(), req.system(), req.connector(), req.role());
         return PermissionResponse.from(saved);
     }
 
@@ -68,19 +76,31 @@ public class PermissionService {
         PermissionId id = new PermissionId(
                 req.appName(), req.employeeNumber(), req.system(), req.connector());
         Permission entity = repository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Permission not found"));
+                .orElseThrow(() -> {
+                    log.warn("Permission updateRole NOT_FOUND app={} emp={} system={} connector={}",
+                            req.appName(), req.employeeNumber(), req.system(), req.connector());
+                    return new ResponseStatusException(HttpStatus.NOT_FOUND, "Permission not found");
+                });
+        String previousRole = entity.getRole();
         entity.setRole(req.role());
-        return PermissionResponse.from(repository.save(entity));
+        PermissionResponse saved = PermissionResponse.from(repository.save(entity));
+        log.info("Permission role CHANGED app={} emp={} system={} connector={} {} -> {}",
+                req.appName(), req.employeeNumber(), req.system(), req.connector(),
+                previousRole, req.role());
+        return saved;
     }
 
     @Transactional
     public void revoke(String appName, String employeeNumber, String system, String connector) {
         PermissionId id = new PermissionId(appName, employeeNumber, system, connector);
         if (!repository.existsById(id)) {
+            log.warn("Permission revoke NOT_FOUND app={} emp={} system={} connector={}",
+                    appName, employeeNumber, system, connector);
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Permission not found");
         }
         repository.deleteById(id);
+        log.info("Permission REVOKED app={} emp={} system={} connector={}",
+                appName, employeeNumber, system, connector);
     }
 
     private void validate(PermissionRequest req) {

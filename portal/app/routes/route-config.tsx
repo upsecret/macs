@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useState } from "react";
 import api from "../utils/api";
+import { useResource } from "../hooks/useResource";
 import type { RouteDefinition, GatewayDefinition } from "../types";
 
 /* ================================================================
@@ -358,8 +359,6 @@ function DefinitionEditor({
    ================================================================ */
 
 export default function RouteConfig() {
-  const [routes, setRoutes] = useState<RouteDefinition[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -379,19 +378,22 @@ export default function RouteConfig() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  /* ── 조회 ──────────────────────────────────────────────── */
-  const fetchRoutes = useCallback(() => {
-    setLoading(true);
-    api
-      .get<RouteDefinition[]>("/api/config/routes")
-      .then((r) => setRoutes(r.data))
-      .catch(() => showToast("error", "라우트 목록을 불러올 수 없습니다."))
-      .finally(() => setLoading(false));
-  }, []);
+  /* ── 조회 (useResource) ────────────────────────────────── */
+  const {
+    data: routesData,
+    loading,
+    error: fetchError,
+    refetch: fetchRoutes,
+  } = useResource<RouteDefinition[]>(
+    () => api.get<RouteDefinition[]>("/api/config/routes").then((r) => r.data),
+    [],
+  );
+  const routes = routesData ?? [];
 
   useEffect(() => {
-    fetchRoutes();
-  }, [fetchRoutes]);
+    if (fetchError) showToast("error", "라우트 목록을 불러올 수 없습니다.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchError]);
 
   /* ── 모달 ──────────────────────────────────────────────── */
   const openCreate = () => {

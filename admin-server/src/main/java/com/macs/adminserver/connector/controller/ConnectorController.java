@@ -7,6 +7,8 @@ import com.macs.adminserver.connector.service.ConnectorService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -60,5 +62,15 @@ public class ConnectorController {
     @Operation(summary = "Delete a connector (gateway route is untouched)")
     public void delete(@PathVariable String id) {
         service.delete(id);
+    }
+
+    @GetMapping(value = "/{id}/api-docs", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Operation(summary = "Proxy-fetch the connector's OpenAPI JSON",
+            description = "docsUrl 이 있으면 그 URL, 없으면 gateway /v3/api-docs/{id} 에서 JSON 을 가져와 그대로 리턴. CORS 회피 목적으로 admin-server 가 프록시.")
+    public ResponseEntity<String> apiDocs(@PathVariable String id) {
+        String body = service.fetchApiDocs(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body);
     }
 }

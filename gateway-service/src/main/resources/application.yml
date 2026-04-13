@@ -58,3 +58,18 @@ otel:
   exporter:
     otlp:
       endpoint: http://otel-collector:4317
+
+# ── MACS Gateway Logging ─────────────────────────────────────
+# RequestResponseLoggingFilter 제어. 모든 필드는 env 로 override 가능:
+#   MACS_GATEWAY_LOGGING_BODY=false 등
+macs:
+  gateway:
+    logging:
+      # 요청/응답 body 를 로그에 포함. 민감 데이터 감안해 운영에선 false 권장.
+      body: true
+      # 요청/응답 헤더 dump. Authorization/Cookie 류는 자동 마스킹.
+      headers: true
+      # body 당 최대 로깅 바이트. 초과분은 truncated.
+      max-body-size: 10240
+      # true 면 /actuator/** 는 logging 건너뜀 (health check 잡음 방지).
+      skip-actuator: true

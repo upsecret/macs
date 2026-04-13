@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import api from "../utils/api";
+import { useResource } from "../hooks/useResource";
 import type { ConfigProperty } from "../types";
 
 /* ── 상수 ──────────────────────────────────────────────────── */
@@ -21,8 +22,6 @@ export default function Settings() {
   const [profile, setProfile] = useState(PROFILES[0]);
 
   /* ── 데이터 ────────────────────────────────────────────── */
-  const [properties, setProperties] = useState<ConfigProperty[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   /* ── 인라인 편집 ───────────────────────────────────────── */
@@ -63,24 +62,35 @@ export default function Settings() {
   };
 
   /* ================================================================
-     데이터 조회
+     데이터 조회 — useResource 가 자동 fetch + refetch 관리
      ================================================================ */
-  const fetchProperties = useCallback(() => {
-    setLoading(true);
+  const {
+    data: propertiesData,
+    loading,
+    error: fetchError,
+    refetch: fetchProperties,
+  } = useResource<ConfigProperty[]>(
+    () =>
+      api
+        .get<ConfigProperty[]>("/api/config/properties", {
+          params: { application, profile, label: DEFAULT_LABEL },
+        })
+        .then((r) => r.data),
+    [application, profile],
+  );
+  const properties = propertiesData ?? [];
+
+  // filter/profile 변경 시 편집 상태 초기화 (이전엔 fetchProperties 안에서 했음)
+  useEffect(() => {
     setEditingKey(null);
     setAdding(false);
-    api
-      .get<ConfigProperty[]>("/api/config/properties", {
-        params: { application, profile, label: DEFAULT_LABEL },
-      })
-      .then((r) => setProperties(r.data))
-      .catch(() => showToast("error", "설정 조회에 실패했습니다."))
-      .finally(() => setLoading(false));
   }, [application, profile]);
 
+  // 조회 실패 시 토스트
   useEffect(() => {
-    fetchProperties();
-  }, [fetchProperties]);
+    if (fetchError) showToast("error", "설정 조회에 실패했습니다.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchError]);
 
   /* ================================================================
      생성

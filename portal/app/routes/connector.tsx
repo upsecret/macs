@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react";
 import api from "../utils/api";
+import ApiDocsViewer from "../components/ApiDocsViewer";
 import ConnectorFormModal from "../components/ConnectorFormModal";
 import { useAuthStore } from "../stores/authStore";
+import { useResource } from "../hooks/useResource";
 import type { Connector, ConnectorType } from "../types";
 
 const TYPE_BADGE: Record<ConnectorType, string> = {
@@ -13,27 +15,15 @@ const TYPE_BADGE: Record<ConnectorType, string> = {
 
 export default function ConnectorPage() {
   const isAdmin = useAuthStore((s) => s.isAdmin());
-  const [connectors, setConnectors] = useState<Connector[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modal, setModal] = useState<"create" | "edit" | null>(null);
 
-  const fetchConnectors = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data } = await api.get<Connector[]>("/api/admin/connectors");
-      setConnectors(data);
-    } catch {
-      setConnectors([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchConnectors();
-  }, [fetchConnectors]);
+  const { data: connectorsData, loading, refetch: fetchConnectors } = useResource<Connector[]>(
+    () => api.get<Connector[]>("/api/admin/connectors").then((r) => r.data),
+    [],
+  );
+  const connectors = connectorsData ?? [];
 
   const selected = connectors.find((c) => c.id === selectedId) ?? null;
 
@@ -42,7 +32,7 @@ export default function ConnectorPage() {
     try {
       await api.delete(`/api/admin/connectors/${id}`);
       setSelectedId(null);
-      fetchConnectors();
+      await fetchConnectors();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "삭제에 실패했습니다.";
       alert(message);
@@ -126,17 +116,10 @@ export default function ConnectorPage() {
           )}
         </div>
 
-        {/* Swagger iframe — 같은 origin이면 CORS 없이 로드 */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="bg-header px-4 py-3 border-b border-gray-200">
-            <h3 className="text-sm font-semibold text-gray-800">API 문서 (Gateway Swagger)</h3>
-          </div>
-          <iframe
-            src={`/swagger-ui/index.html?urls.primaryName=${encodeURIComponent(selected.id)}`}
-            title={`Swagger - ${selected.id}`}
-            className="w-full border-0"
-            style={{ height: "calc(100vh - 420px)", minHeight: "480px" }}
-          />
+        {/* API 문서 — admin-server 프록시 를 통해 OpenAPI JSON 을 받아 구조화 렌더 */}
+        <div>
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">API 문서</h3>
+          <ApiDocsViewer connectorId={selected.id} />
         </div>
 
         {modal === "edit" && (

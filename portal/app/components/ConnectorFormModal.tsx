@@ -18,6 +18,7 @@ export default function ConnectorFormModal({ mode, initial, onClose, onSaved }: 
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [type, setType] = useState<ConnectorType>(initial?.type ?? "api");
+  const [docsUrl, setDocsUrl] = useState(initial?.docsUrl ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -39,9 +40,20 @@ export default function ConnectorFormModal({ mode, initial, onClose, onSaved }: 
       setError("id, title, type은 필수입니다.");
       return;
     }
+    const trimmedDocsUrl = docsUrl.trim();
+    if (trimmedDocsUrl && !/^https?:\/\//.test(trimmedDocsUrl)) {
+      setError("API 문서 URL 은 http:// 또는 https:// 로 시작해야 합니다.");
+      return;
+    }
     setSaving(true);
     try {
-      const payload = { id, title: title.trim(), description: description.trim() || null, type };
+      const payload = {
+        id,
+        title: title.trim(),
+        description: description.trim() || null,
+        type,
+        docsUrl: trimmedDocsUrl || null,
+      };
       if (mode === "create") {
         await api.post("/api/admin/connectors", payload);
       } else {
@@ -145,6 +157,23 @@ export default function ConnectorFormModal({ mode, initial, onClose, onSaved }: 
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              API 문서 URL <span className="text-gray-400 text-xs font-normal">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={docsUrl}
+              onChange={(e) => setDocsUrl(e.target.value)}
+              placeholder="기본: gateway /v3/api-docs/{routeId}"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary/40 focus:border-primary"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              서비스의 OpenAPI JSON 이 gateway 를 통한 기본 경로가 아닐 때 절대 URL 을 지정합니다. 예:{" "}
+              <code>http://10.40.59.61:8080/token-dic/v3/api-docs</code>
+            </p>
           </div>
 
           {error && (

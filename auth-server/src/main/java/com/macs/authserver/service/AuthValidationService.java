@@ -7,6 +7,8 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -16,6 +18,8 @@ import java.util.List;
 
 @Service
 public class AuthValidationService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthValidationService.class);
 
     private final AuthTokenService tokenService;
     private final AdminPermissionClient adminPermissionClient;
@@ -31,26 +35,37 @@ public class AuthValidationService {
                 .flatMap(claims -> {
                     String employeeNumber = claims.get("employee_number", String.class);
                     if (employeeNumber == null || employeeNumber.isBlank()) {
+                        log.warn("Token validation failed: missing employee_number in claims");
                         return Mono.error(new ResponseStatusException(
                                 HttpStatus.UNAUTHORIZED, "Token missing employee_number"));
                     }
 
                     String connector = request.connector();
                     if (connector == null || connector.isBlank()) {
+                        log.info("Token valid (signature+expiry only) emp={}", employeeNumber);
                         return Mono.just(new ValidationResponse(true, true, employeeNumber));
                     }
 
                     String appName = request.appName();
                     if (appName == null || appName.isBlank()) {
+                        log.warn("Validate rejected: connector={} provided without app_name (emp={})",
+                                connector, employeeNumber);
                         return Mono.error(new ResponseStatusException(
                                 HttpStatus.BAD_REQUEST, "app_name is required when connector is provided"));
                     }
 
                     return adminPermissionClient.fetch(appName, employeeNumber)
-                            .map(perms -> new ValidationResponse(
-                                    true,
-                                    matchesConnector(perms, connector),
-                                    employeeNumber));
+                            .map(perms -> {
+                                boolean allowed = matchesConnector(perms, connector);
+                                if (allowed) {
+                                    log.info("Validate ALLOW app={} emp={} connector={} (grants={})",
+                                            appName, employeeNumber, connector, perms.size());
+                                } else {
+                                    log.warn("Validate DENY app={} emp={} connector={} (grants={})",
+                                            appName, employeeNumber, connector, perms.size());
+                                }
+                                return new ValidationResponse(true, allowed, employeeNumber);
+                            });
                 });
     }
 
@@ -63,8 +78,10 @@ public class AuthValidationService {
                     .parseSignedClaims(token)
                     .getPayload();
         } catch (ExpiredJwtException e) {
+            log.warn("Token validation failed: expired");
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Token expired");
         } catch (JwtException e) {
+            log.warn("Token validation failed: invalid signature/format ({})", e.getClass().getSimpleName());
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token");
         }
     }

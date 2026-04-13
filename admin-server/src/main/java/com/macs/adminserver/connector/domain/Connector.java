@@ -24,17 +24,21 @@ public class Connector {
     @Column(name = "TYPE", length = 16, nullable = false)
     private String type;
 
+    @Column(name = "DOCS_URL", length = 512)
+    private String docsUrl;
+
     @Column(name = "CREATED_AT", insertable = false, updatable = false)
     private LocalDateTime createdAt;
 
     protected Connector() {
     }
 
-    public Connector(String id, String title, String description, String type) {
+    public Connector(String id, String title, String description, String type, String docsUrl) {
         this.id = id;
         this.title = title;
         this.description = description;
         this.type = type;
+        this.docsUrl = docsUrl;
     }
 
     public String getId() {
@@ -63,6 +67,14 @@ public class Connector {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    public String getDocsUrl() {
+        return docsUrl;
+    }
+
+    public void setDocsUrl(String docsUrl) {
+        this.docsUrl = docsUrl;
     }
 
     public LocalDateTime getCreatedAt() {

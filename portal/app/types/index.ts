@@ -54,6 +54,8 @@ export interface Connector {
   type: ConnectorType;
   active: boolean;
   uri: string | null;
+  /** optional 외부 OpenAPI JSON URL. null 이면 gateway /v3/api-docs/{id} 사용 */
+  docsUrl: string | null;
   createdAt: string;
 }
 

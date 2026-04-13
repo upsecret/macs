@@ -1,5 +1,7 @@
 package com.macs.gateway.filter;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -15,19 +17,24 @@ import java.nio.charset.StandardCharsets;
 @Component
 public class HeaderValidationFilter implements GlobalFilter, Ordered {
 
+    private static final Logger log = LoggerFactory.getLogger(HeaderValidationFilter.class);
+
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         if (shouldSkip(exchange)) {
             return chain.filter(exchange);
         }
 
+        String path = exchange.getRequest().getURI().getPath();
         String appName = exchange.getRequest().getHeaders().getFirst("app_name");
         String employeeNumber = exchange.getRequest().getHeaders().getFirst("employee_number");
 
         if (appName == null || appName.isBlank()) {
+            log.warn("Reject 400: missing app_name header path={}", path);
             return writeError(exchange, HttpStatus.BAD_REQUEST, "Missing required header: app_name");
         }
         if (employeeNumber == null || employeeNumber.isBlank()) {
+            log.warn("Reject 400: missing employee_number header path={} app={}", path, appName);
             return writeError(exchange, HttpStatus.BAD_REQUEST, "Missing required header: employee_number");
         }
 

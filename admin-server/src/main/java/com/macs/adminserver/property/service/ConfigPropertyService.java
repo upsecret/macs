@@ -8,6 +8,8 @@ import com.macs.adminserver.property.dto.PropertyResponse;
 import com.macs.adminserver.property.dto.RouteRequest;
 import com.macs.adminserver.property.dto.RouteResponse;
 import com.macs.adminserver.property.repository.ConfigPropertyRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cloud.bus.event.RefreshRemoteApplicationEvent;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpStatus;
@@ -27,6 +29,8 @@ import java.util.regex.Pattern;
 @Service
 @Transactional(readOnly = true)
 public class ConfigPropertyService {
+
+    private static final Logger log = LoggerFactory.getLogger(ConfigPropertyService.class);
 
     // Spring Cloud Gateway 4.x: prefix moved to spring.cloud.gateway.server.webflux.*
     private static final String ROUTE_PREFIX = "spring.cloud.gateway.server.webflux.routes";
@@ -61,27 +65,44 @@ public class ConfigPropertyService {
     public PropertyResponse createProperty(PropertyRequest request) {
         ConfigPropertyId id = toId(request);
         if (repository.existsById(id)) {
+            log.warn("Property CREATE conflict app={} profile={} label={} key={}",
+                    request.application(), request.profile(), request.label(), request.propKey());
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Property already exists");
         }
-        return toPropertyResponse(repository.save(new ConfigProperty(id, request.propValue())));
+        PropertyResponse saved = toPropertyResponse(
+                repository.save(new ConfigProperty(id, request.propValue())));
+        log.info("Property CREATED app={} profile={} label={} key={}",
+                request.application(), request.profile(), request.label(), request.propKey());
+        return saved;
     }
 
     @Transactional
     public PropertyResponse updateProperty(PropertyRequest request) {
         ConfigPropertyId id = toId(request);
         ConfigProperty entity = repository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Property not found"));
+                .orElseThrow(() -> {
+                    log.warn("Property UPDATE not-found app={} profile={} label={} key={}",
+                            request.application(), request.profile(), request.label(), request.propKey());
+                    return new ResponseStatusException(HttpStatus.NOT_FOUND, "Property not found");
+                });
         entity.setPropValue(request.propValue());
-        return toPropertyResponse(repository.save(entity));
+        PropertyResponse saved = toPropertyResponse(repository.save(entity));
+        log.info("Property UPDATED app={} profile={} label={} key={}",
+                request.application(), request.profile(), request.label(), request.propKey());
+        return saved;
     }
 
     @Transactional
     public void deleteProperty(String application, String profile, String label, String propKey) {
         ConfigPropertyId id = new ConfigPropertyId(application, profile, label, propKey);
         if (!repository.existsById(id)) {
+            log.warn("Property DELETE not-found app={} profile={} label={} key={}",
+                    application, profile, label, propKey);
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Property not found");
         }
         repository.deleteById(id);
+        log.info("Property DELETED app={} profile={} label={} key={}",
+                application, profile, label, propKey);
     }
 
     // ── Route CRUD ──────────────────────────────────────────────
@@ -98,12 +119,15 @@ public class ConfigPropertyService {
         int nextIndex = nextRouteIndex(application, profile, label);
         saveRouteProperties(application, profile, label, nextIndex, request);
 
-        if (shouldRegisterSwagger(request)) {
+        boolean swagger = shouldRegisterSwagger(request);
+        if (swagger) {
             int docsIndex = nextRouteIndex(application, profile, label);
             saveRouteProperties(application, profile, label, docsIndex,
                     buildApiDocsRoute(request.id(), request.uri()));
             addSwaggerUrlEntry(application, profile, label, request.id());
         }
+        log.info("Route CREATED app={} profile={} label={} id={} uri={} index={} swagger={}",
+                application, profile, label, request.id(), request.uri(), nextIndex, swagger);
         return toRouteResponse(request);
     }
 
@@ -124,6 +148,8 @@ public class ConfigPropertyService {
             saveRouteProperties(application, profile, label, docsIdx,
                     buildApiDocsRoute(routeId, request.uri()));
         }
+        log.info("Route UPDATED app={} profile={} label={} id={} newUri={} docsSynced={}",
+                application, profile, label, routeId, request.uri(), docsIdx != null);
         return toRouteResponse(request);
     }
 
@@ -141,11 +167,15 @@ public class ConfigPropertyService {
                     ROUTE_PREFIX + "[" + docsIdx + "].%");
         }
         removeSwaggerUrlEntry(application, profile, label, routeId);
+        log.info("Route DELETED app={} profile={} label={} id={} docsRemoved={}",
+                application, profile, label, routeId, docsIdx != null);
     }
 
     // ── Refresh ─────────────────────────────────────────────────
 
     public void publishRefreshEvent() {
+        log.info("Publishing RefreshRemoteApplicationEvent destination=** origin={}",
+                applicationContext.getId());
         applicationContext.publishEvent(
                 new RefreshRemoteApplicationEvent(this, applicationContext.getId(), "**"));
     }

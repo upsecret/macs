@@ -13,6 +13,7 @@ public record ConnectorResponse(
         String type,
         boolean active,
         String uri,
+        String docsUrl,
         LocalDateTime createdAt
 ) {
     public static ConnectorResponse of(Connector entity, boolean active, String uri) {
@@ -23,6 +24,7 @@ public record ConnectorResponse(
                 entity.getType(),
                 active,
                 uri,
+                entity.getDocsUrl(),
                 entity.getCreatedAt());
     }
 }

@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { Trash2, Plus, Search, Key, Copy } from "lucide-react";
 import api from "../utils/api";
+import { useResource } from "../hooks/useResource";
 import type { AuthResponse, Permission, AvailableRoute, RouteDefinition } from "../types";
 
 const rawClient = axios.create({ baseURL: "", timeout: 10000 });
@@ -27,12 +28,9 @@ export default function AuthManage() {
   // ── 조회 (employee 중심, app 은 optional 필터) ────────────────
   const [searchEmp, setSearchEmp] = useState("");
   const [searchApp, setSearchApp] = useState("");
-  const [permissions, setPermissions] = useState<Permission[]>([]);
   const [searched, setSearched] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   // ── 권한 부여 폼 ─────────────────────────────────────────────
-  const [availableRoutes, setAvailableRoutes] = useState<string[]>([]);
   const [formApp, setFormApp] = useState("portal");
   const [formEmp, setFormEmp] = useState("");
   const [formSystem, setFormSystem] = useState("common");
@@ -47,42 +45,56 @@ export default function AuthManage() {
   const [tokenError, setTokenError] = useState<string | null>(null);
   const [issuing, setIssuing] = useState(false);
 
-  const fetchRoutes = useCallback(async () => {
-    try {
+  // ── available routes (mount 시 auto-fetch, 2개 endpoint 병합) ─
+  const { data: availableRoutesData } = useResource<string[]>(
+    async () => {
       const [routesRes, availRes] = await Promise.all([
-        api.get<RouteDefinition[]>("/api/config/routes").catch(() => ({ data: [] as RouteDefinition[] })),
-        api.get<AvailableRoute[]>("/api/admin/connectors/available-routes").catch(() => ({ data: [] as AvailableRoute[] })),
+        api
+          .get<RouteDefinition[]>("/api/config/routes")
+          .catch(() => ({ data: [] as RouteDefinition[] })),
+        api
+          .get<AvailableRoute[]>("/api/admin/connectors/available-routes")
+          .catch(() => ({ data: [] as AvailableRoute[] })),
       ]);
       const ids = new Set<string>();
       routesRes.data.forEach((r) => ids.add(r.id));
       availRes.data.forEach((r) => ids.add(r.id));
-      const sorted = [...ids].sort();
-      setAvailableRoutes(sorted);
-      setFormConnector((prev) => prev || sorted[0] || "");
-    } catch {
-      setAvailableRoutes([]);
-    }
-  }, []);
+      return [...ids].sort();
+    },
+    [],
+    { initialData: [] },
+  );
+  const availableRoutes = availableRoutesData ?? [];
 
+  // 최초 로드 후 formConnector 기본값 세팅 (빈 값이면 첫 route id 로 채움)
   useEffect(() => {
-    fetchRoutes();
-  }, [fetchRoutes]);
+    if (!formConnector && availableRoutes.length > 0) {
+      setFormConnector(availableRoutes[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availableRoutes]);
+
+  // ── permissions 검색 (on-demand, enabled=false) ──────────────
+  const {
+    data: permissionsData,
+    loading,
+    refetch: runSearch,
+  } = useResource<Permission[]>(
+    () => {
+      const params: Record<string, string> = { employeeNumber: searchEmp.trim() };
+      if (searchApp.trim()) params.appName = searchApp.trim();
+      return api.get<Permission[]>("/api/admin/permissions", { params }).then((r) => r.data);
+    },
+    [searchEmp, searchApp],
+    { enabled: false, initialData: [] },
+  );
+  const permissions = permissionsData ?? [];
 
   const handleSearch = useCallback(async () => {
     if (!searchEmp.trim()) return;
-    setLoading(true);
     setSearched(true);
-    try {
-      const params: Record<string, string> = { employeeNumber: searchEmp.trim() };
-      if (searchApp.trim()) params.appName = searchApp.trim();
-      const { data } = await api.get<Permission[]>("/api/admin/permissions", { params });
-      setPermissions(data);
-    } catch {
-      setPermissions([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [searchEmp, searchApp]);
+    await runSearch();
+  }, [searchEmp, runSearch]);
 
   const handleRevoke = async (p: Permission) => {
     if (!confirm(`권한 해제: ${p.employeeNumber} → ${p.appName}/${p.system}/${p.connector} (${p.role})?`)) return;
