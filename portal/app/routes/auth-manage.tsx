@@ -6,6 +6,12 @@ import type { AuthResponse, Permission, AvailableRoute, RouteDefinition } from "
 
 const rawClient = axios.create({ baseURL: "", timeout: 10000 });
 
+// 새 권한 모델: {client_app}:{system}:{connector}:{role}
+// employee_number 중심으로 부여/조회.
+// role 값은 admin / operator / viewer (PoC 단계라 enforce 는 connector 매칭만).
+const ROLE_OPTIONS = ["admin", "operator", "viewer"] as const;
+const COMMON_SYSTEMS = ["common", "rms", "fdc", "mes", "yms"];
+
 function decodeJwt(token: string): { header: unknown; payload: unknown } | null {
   try {
     const [h, p] = token.split(".");
@@ -18,24 +24,24 @@ function decodeJwt(token: string): { header: unknown; payload: unknown } | null 
 }
 
 export default function AuthManage() {
-  const [searchApp, setSearchApp] = useState("portal");
+  // ── 조회 (employee 중심, app 은 optional 필터) ────────────────
   const [searchEmp, setSearchEmp] = useState("");
+  const [searchApp, setSearchApp] = useState("");
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // grant form
+  // ── 권한 부여 폼 ─────────────────────────────────────────────
   const [availableRoutes, setAvailableRoutes] = useState<string[]>([]);
   const [formApp, setFormApp] = useState("portal");
   const [formEmp, setFormEmp] = useState("");
-  const [formSystem, setFormSystem] = useState("macs");
+  const [formSystem, setFormSystem] = useState("common");
   const [formConnector, setFormConnector] = useState("");
-  const [formRole, setFormRole] = useState("user");
+  const [formRole, setFormRole] = useState<(typeof ROLE_OPTIONS)[number]>("viewer");
   const [formError, setFormError] = useState<string | null>(null);
   const [granting, setGranting] = useState(false);
 
-  // token issuance debug
-  const [tokenApp, setTokenApp] = useState("portal");
+  // ── 토큰 발급 디버그 (employee_number 만) ─────────────────────
   const [tokenEmp, setTokenEmp] = useState("");
   const [tokenResult, setTokenResult] = useState<AuthResponse | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
@@ -63,23 +69,23 @@ export default function AuthManage() {
   }, [fetchRoutes]);
 
   const handleSearch = useCallback(async () => {
-    if (!searchApp.trim() || !searchEmp.trim()) return;
+    if (!searchEmp.trim()) return;
     setLoading(true);
     setSearched(true);
     try {
-      const { data } = await api.get<Permission[]>("/api/admin/permissions", {
-        params: { appName: searchApp.trim(), employeeNumber: searchEmp.trim() },
-      });
+      const params: Record<string, string> = { employeeNumber: searchEmp.trim() };
+      if (searchApp.trim()) params.appName = searchApp.trim();
+      const { data } = await api.get<Permission[]>("/api/admin/permissions", { params });
       setPermissions(data);
     } catch {
       setPermissions([]);
     } finally {
       setLoading(false);
     }
-  }, [searchApp, searchEmp]);
+  }, [searchEmp, searchApp]);
 
   const handleRevoke = async (p: Permission) => {
-    if (!confirm(`권한 해제: ${p.employeeNumber} → ${p.system}/${p.connector} (${p.role})?`)) return;
+    if (!confirm(`권한 해제: ${p.employeeNumber} → ${p.appName}/${p.system}/${p.connector} (${p.role})?`)) return;
     try {
       await api.delete("/api/admin/permissions", {
         params: {
@@ -99,7 +105,7 @@ export default function AuthManage() {
   const handleGrant = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
-    if (!formApp.trim() || !formEmp.trim() || !formSystem.trim() || !formConnector || !formRole.trim()) {
+    if (!formApp.trim() || !formEmp.trim() || !formSystem.trim() || !formConnector || !formRole) {
       setFormError("모든 필드를 입력하세요.");
       return;
     }
@@ -110,9 +116,10 @@ export default function AuthManage() {
         employeeNumber: formEmp.trim(),
         system: formSystem.trim(),
         connector: formConnector,
-        role: formRole.trim(),
+        role: formRole,
       });
-      if (searched && searchApp === formApp && searchEmp === formEmp.trim()) {
+      // 검색 결과가 부여 대상 사번이면 자동 새로고침
+      if (searched && searchEmp === formEmp.trim()) {
         handleSearch();
       }
       setFormEmp("");
@@ -141,7 +148,9 @@ export default function AuthManage() {
         {
           headers: {
             "Content-Type": "application/json",
-            app_name: tokenApp.trim() || "portal",
+            // app_name 헤더는 gateway HeaderValidationFilter 가 강제하므로 임의값 portal 로 채움.
+            // 토큰 자체엔 app_name 이 들어가지 않는다.
+            app_name: "portal",
             employee_number: tokenEmp.trim(),
           },
         },
@@ -175,32 +184,35 @@ export default function AuthManage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">권한 관리</h1>
         <p className="text-sm text-gray-500 mt-1">
-          사용자별 (app × employee)에 대해 어떤 gateway route에 접근 가능한지 관리
+          사번을 중심으로 <code className="text-xs">{"{client_app}:{system}:{connector}:{role}"}</code> 권한을 부여·조회·해제합니다. connector 는 gateway route id 와 같습니다.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* ── 조회 ─────────────────────────────────── */}
+        {/* ── 조회 (employee 중심) ─────────────────────── */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">사용자 권한 조회</h2>
 
           <div className="flex items-end gap-2 mb-4">
             <div className="flex-1">
-              <label className="block text-xs text-gray-500 mb-1">App Name</label>
-              <input
-                type="text"
-                value={searchApp}
-                onChange={(e) => setSearchApp(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="block text-xs text-gray-500 mb-1">Employee Number</label>
+              <label className="block text-xs text-gray-500 mb-1">
+                Employee Number <span className="text-error">*</span>
+              </label>
               <input
                 type="text"
                 value={searchEmp}
                 onChange={(e) => setSearchEmp(e.target.value)}
                 placeholder="2078432"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs text-gray-500 mb-1">App Name <span className="text-gray-400">(optional)</span></label>
+              <input
+                type="text"
+                value={searchApp}
+                onChange={(e) => setSearchApp(e.target.value)}
+                placeholder="portal"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary"
               />
             </div>
@@ -222,6 +234,7 @@ export default function AuthManage() {
               <table className="w-full text-sm">
                 <thead className="bg-header">
                   <tr>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">App</th>
                     <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">System</th>
                     <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Connector</th>
                     <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Role</th>
@@ -230,7 +243,8 @@ export default function AuthManage() {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {permissions.map((p) => (
-                    <tr key={`${p.system}:${p.connector}`} className="hover:bg-gray-50">
+                    <tr key={`${p.appName}:${p.system}:${p.connector}`} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 text-gray-700">{p.appName}</td>
                       <td className="px-3 py-2 text-gray-700">{p.system}</td>
                       <td className="px-3 py-2 font-mono text-gray-700">{p.connector}</td>
                       <td className="px-3 py-2">
@@ -253,7 +267,7 @@ export default function AuthManage() {
               </table>
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-400 text-sm">조회 조건을 입력하세요.</div>
+            <div className="text-center py-8 text-gray-400 text-sm">사번을 입력하세요.</div>
           )}
         </div>
 
@@ -262,40 +276,49 @@ export default function AuthManage() {
           <h2 className="text-lg font-semibold text-gray-800 mb-4">권한 부여</h2>
 
           <form onSubmit={handleGrant} className="space-y-4">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">
+                Employee Number <span className="text-error">*</span>
+              </label>
+              <input
+                type="text"
+                value={formEmp}
+                onChange={(e) => setFormEmp(e.target.value)}
+                placeholder="2065162"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary"
+                required
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">App Name</label>
+                <label className="block text-xs text-gray-500 mb-1">Client App</label>
                 <input
                   type="text"
                   value={formApp}
                   onChange={(e) => setFormApp(e.target.value)}
+                  placeholder="portal"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary"
                   required
                 />
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Employee Number</label>
+                <label className="block text-xs text-gray-500 mb-1">System</label>
                 <input
                   type="text"
-                  value={formEmp}
-                  onChange={(e) => setFormEmp(e.target.value)}
-                  placeholder="2065162"
+                  list="system-options"
+                  value={formSystem}
+                  onChange={(e) => setFormSystem(e.target.value)}
+                  placeholder="common"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary"
                   required
                 />
+                <datalist id="system-options">
+                  {COMMON_SYSTEMS.map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
               </div>
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">System</label>
-              <input
-                type="text"
-                value={formSystem}
-                onChange={(e) => setFormSystem(e.target.value)}
-                placeholder="macs"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary"
-                required
-              />
             </div>
 
             <div>
@@ -322,15 +345,17 @@ export default function AuthManage() {
               <label className="block text-xs text-gray-500 mb-1">Role</label>
               <select
                 value={formRole}
-                onChange={(e) => setFormRole(e.target.value)}
+                onChange={(e) => setFormRole(e.target.value as (typeof ROLE_OPTIONS)[number])}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary"
                 required
               >
-                <option value="admin">admin</option>
-                <option value="operator">operator</option>
-                <option value="user">user</option>
-                <option value="viewer">viewer</option>
+                {ROLE_OPTIONS.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
               </select>
+              <p className="text-[11px] text-gray-400 mt-1">
+                role 은 현재 enforce 되지 않고 connector 매칭만 사용됩니다 (README §9 TODO 참조).
+              </p>
             </div>
 
             {formError && (
@@ -353,20 +378,10 @@ export default function AuthManage() {
       <div className="bg-white rounded-lg shadow p-6 mt-6">
         <h2 className="text-lg font-semibold text-gray-800 mb-1">토큰 발급 (디버그)</h2>
         <p className="text-xs text-gray-500 mb-4">
-          임의의 employee_number 에 대해 JWT 를 받아본다. 권한은 토큰에 들어있지 않으므로 payload 엔 sub 만 보임. 현재 로그인 세션에는 영향을 주지 않는다.
+          임의의 employee_number 에 대해 JWT 를 받아본다. 토큰엔 sub(=employee_number) 만 들어 있고 권한은 매 요청 auth-server 가 PERMISSION 테이블에서 확인한다. 현재 로그인 세션에는 영향을 주지 않는다.
         </p>
 
         <form onSubmit={handleIssueToken} className="flex items-end gap-2 mb-4">
-          <div className="flex-1">
-            <label className="block text-xs text-gray-500 mb-1">App Name</label>
-            <input
-              type="text"
-              value={tokenApp}
-              onChange={(e) => setTokenApp(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary"
-              required
-            />
-          </div>
           <div className="flex-1">
             <label className="block text-xs text-gray-500 mb-1">Employee Number</label>
             <input
