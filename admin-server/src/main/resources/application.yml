@@ -8,7 +8,7 @@ spring:
     active: jdbc
 
   datasource:
-    url: jdbc:oracle:thin:@oracle:1521/${ORACLE_SERVICE_NAME:FREE}
+    url: jdbc:oracle:thin:@oracle:1521/FREE
     username: macs
     password: macs_password
     driver-class-name: oracle.jdbc.OracleDriver
@@ -28,6 +28,8 @@ spring:
         jdbc:
           sql: "SELECT PROP_KEY, PROP_VALUE from MACS.PROPERTIES where APPLICATION=? and PROFILE=? and LABEL=?"
           order: 1
+          # PROPERTIES 시드는 LABEL='main'. client 가 label 미지정 시 default 'master' 로 가서 0 rows 가 나던 이슈 수정.
+          default-label: main
     bus:
       enabled: true
 

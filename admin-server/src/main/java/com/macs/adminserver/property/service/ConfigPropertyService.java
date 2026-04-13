@@ -28,10 +28,11 @@ import java.util.regex.Pattern;
 @Transactional(readOnly = true)
 public class ConfigPropertyService {
 
-    private static final String ROUTE_PREFIX = "spring.cloud.gateway.routes";
+    // Spring Cloud Gateway 4.x: prefix moved to spring.cloud.gateway.server.webflux.*
+    private static final String ROUTE_PREFIX = "spring.cloud.gateway.server.webflux.routes";
     private static final String SWAGGER_URLS_PREFIX = "springdoc.swagger-ui.urls";
     private static final Pattern ROUTE_INDEX_PATTERN =
-            Pattern.compile("spring\\.cloud\\.gateway\\.routes\\[(\\d+)]\\..+");
+            Pattern.compile("spring\\.cloud\\.gateway\\.server\\.webflux\\.routes\\[(\\d+)]\\..+");
     private static final Pattern SWAGGER_URL_INDEX_PATTERN =
             Pattern.compile("springdoc\\.swagger-ui\\.urls\\[(\\d+)]\\.(name|url)");
     private static final Pattern DEF_PATTERN =

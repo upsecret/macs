@@ -1,14 +1,18 @@
 -- ============================================================
 -- MACS System – Oracle Init Script
--- Target: gvenzl/oracle-free:23-slim (service: FREE, override via ORACLE_SERVICE_NAME)
+-- Target: gvenzl/oracle-free:23-slim (service: FREE)
 -- ============================================================
 
 CREATE USER macs IDENTIFIED BY macs_password
     DEFAULT TABLESPACE users TEMPORARY TABLESPACE temp QUOTA UNLIMITED ON users;
 
-GRANT CREATE SESSION, CREATE TABLE, CREATE VIEW, CREATE SEQUENCE, UNLIMITED TABLESPACE TO macs;
+-- PoC: macs 에 전체 DBA. 운영 시 최소 권한으로 분리할 것.
+GRANT DBA TO macs;
 
-ALTER SESSION SET CURRENT_SCHEMA = macs;
+-- 이후 모든 DDL/DML 을 macs 로 실행 → 객체 owner = MACS 스키마 보장.
+-- (CURRENT_SCHEMA 트릭 제거: SYSTEM 세션에서 CREATE TABLE 의 owner 가
+--  의도와 다르게 잡혀 ORA-00942 가 났던 케이스 대응)
+CONNECT macs/macs_password
 
 -- ============================================================
 -- Config Server – PROPERTIES
@@ -131,160 +135,160 @@ MERGE INTO PROPERTIES t USING (SELECT
 -- ── gateway-service 라우트 (config server → gateway 단일 소스) ──
 -- routes[0] auth-route  (/api/auth/** → auth-server)
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[0].id' PROP_KEY,'auth-route' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[0].id' PROP_KEY,'auth-route' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[0].uri' PROP_KEY,'http://auth-server:9000' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[0].uri' PROP_KEY,'http://auth-server:9000' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[0].predicates[0]' PROP_KEY,'Path=/api/auth/**' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[0].predicates[0]' PROP_KEY,'Path=/api/auth/**' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[0].filters[0].name' PROP_KEY,'RequestRateLimiter' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[0].filters[0].name' PROP_KEY,'RequestRateLimiter' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[0].filters[0].args.redis-rate-limiter.replenishRate' PROP_KEY,'50' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[0].filters[0].args.redis-rate-limiter.replenishRate' PROP_KEY,'50' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[0].filters[0].args.redis-rate-limiter.burstCapacity' PROP_KEY,'100' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[0].filters[0].args.redis-rate-limiter.burstCapacity' PROP_KEY,'100' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[0].filters[0].args.key-resolver' PROP_KEY,'#{@headerKeyResolver}' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[0].filters[0].args.key-resolver' PROP_KEY,'#{@headerKeyResolver}' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[0].filters[0].args.deny-empty-key' PROP_KEY,'false' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[0].filters[0].args.deny-empty-key' PROP_KEY,'false' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 
 -- routes[1] admin-route  (/api/config/**, /api/admin/** → admin-server)
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[1].id' PROP_KEY,'admin-route' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[1].id' PROP_KEY,'admin-route' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[1].uri' PROP_KEY,'http://admin-server:8888' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[1].uri' PROP_KEY,'http://admin-server:8888' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[1].predicates[0]' PROP_KEY,'Path=/api/config/**,/api/admin/**' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[1].predicates[0]' PROP_KEY,'Path=/api/config/**,/api/admin/**' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[1].filters[0].name' PROP_KEY,'RequestRateLimiter' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[1].filters[0].name' PROP_KEY,'RequestRateLimiter' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[1].filters[0].args.redis-rate-limiter.replenishRate' PROP_KEY,'50' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[1].filters[0].args.redis-rate-limiter.replenishRate' PROP_KEY,'50' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[1].filters[0].args.redis-rate-limiter.burstCapacity' PROP_KEY,'100' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[1].filters[0].args.redis-rate-limiter.burstCapacity' PROP_KEY,'100' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[1].filters[0].args.key-resolver' PROP_KEY,'#{@headerKeyResolver}' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[1].filters[0].args.key-resolver' PROP_KEY,'#{@headerKeyResolver}' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[1].filters[0].args.deny-empty-key' PROP_KEY,'false' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[1].filters[0].args.deny-empty-key' PROP_KEY,'false' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[1].filters[1].name' PROP_KEY,'AuthValidation' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[1].filters[1].name' PROP_KEY,'AuthValidation' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[1].filters[1].args.connector' PROP_KEY,'portal' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[1].filters[1].args.connector' PROP_KEY,'portal' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 
 -- routes[2] auth-api-docs (swagger aggregation)
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[2].id' PROP_KEY,'auth-api-docs' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[2].id' PROP_KEY,'auth-api-docs' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[2].uri' PROP_KEY,'http://auth-server:9000' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[2].uri' PROP_KEY,'http://auth-server:9000' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[2].predicates[0]' PROP_KEY,'Path=/v3/api-docs/auth-server' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[2].predicates[0]' PROP_KEY,'Path=/v3/api-docs/auth-server' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[2].filters[0]' PROP_KEY,'RewritePath=/v3/api-docs/auth-server, /v3/api-docs' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[2].filters[0]' PROP_KEY,'RewritePath=/v3/api-docs/auth-server, /v3/api-docs' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 
 -- routes[3] admin-api-docs
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[3].id' PROP_KEY,'admin-api-docs' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[3].id' PROP_KEY,'admin-api-docs' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[3].uri' PROP_KEY,'http://admin-server:8888' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[3].uri' PROP_KEY,'http://admin-server:8888' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[3].predicates[0]' PROP_KEY,'Path=/v3/api-docs/admin-server' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[3].predicates[0]' PROP_KEY,'Path=/v3/api-docs/admin-server' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[3].filters[0]' PROP_KEY,'RewritePath=/v3/api-docs/admin-server, /v3/api-docs' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[3].filters[0]' PROP_KEY,'RewritePath=/v3/api-docs/admin-server, /v3/api-docs' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 
 -- routes[4] portal-route (portal UI static)
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[4].id' PROP_KEY,'portal-route' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[4].id' PROP_KEY,'portal-route' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[4].uri' PROP_KEY,'http://portal:3000' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[4].uri' PROP_KEY,'http://portal:3000' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[4].predicates[0]' PROP_KEY,'Path=/portal/**' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[4].predicates[0]' PROP_KEY,'Path=/portal/**' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.routes[4].filters[0]' PROP_KEY,'StripPrefix=1' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[4].filters[0]' PROP_KEY,'StripPrefix=1' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);

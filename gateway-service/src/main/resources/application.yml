@@ -12,10 +12,13 @@ spring:
     bus:
       enabled: true
     gateway:
-      default-filters:
-        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
-      # routes 는 admin-server(config server) PROPERTIES 테이블에서 주입됨.
-      # 수정은 portal /route-config → "변경사항 반영" 으로 실시간 반영.
+      server:
+        webflux:
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
+          # routes 는 admin-server(config server) PROPERTIES 테이블에서 주입됨.
+          # 수정은 portal /route-config → "변경사항 반영" 으로 실시간 반영.
+          # 키 prefix: spring.cloud.gateway.server.webflux.routes[N].* (4.x 이후)
 
   data:
     redis:
@@ -34,9 +37,9 @@ management:
     health:
       show-details: always
     gateway:
-      enabled: true
+      access: read_only
     env:
-      show-values: ALWAY
+      show-values: ALWAYS
 
 # ── SpringDoc Swagger ────────────────────────────────────────
 springdoc:

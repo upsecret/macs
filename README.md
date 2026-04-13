@@ -144,15 +144,9 @@ docker ps --format "{{.Names}}\t{{.Status}}"
 | Portal | http://localhost:3000 |
 | Gateway Swagger UI | http://localhost:3000/swagger-ui/index.html |
 | Kibana | http://localhost:5601 (elastic / elastic_password) |
-| Oracle | localhost:1521/${ORACLE_SERVICE_NAME:-FREE} (macs / macs_password) |
+| Oracle | localhost:1521/FREE (macs / macs_password) |
 
-### 환경변수 (`.env`)
-
-`.env.example` 을 `.env` 로 복사해 환경별 값을 조정한다.
-
-- `ORACLE_SERVICE_NAME` — Oracle 리스너에 등록된 서비스명. 기본 `FREE`. 컨테이너가 PDB(`FREEPDB1`)를 등록하는 환경이면 `FREEPDB1` 로 override.
-- `MACS_BOOTSTRAP_ADMIN_EMPLOYEE_NUMBER` — 초기 admin 사번(기본 `2078432`). admin-server 기동 시 PERMISSION 테이블에 자동 UPSERT.
-- `MACS_BOOTSTRAP_ADMIN_ENABLED` — bootstrap 끄려면 `false`.
+초기 admin 사번(`2078432`)은 admin-server 기동 시 [`PermissionBootstrapRunner`](admin-server/src/main/java/com/macs/adminserver/permission/bootstrap/PermissionBootstrapRunner.java) 가 자동 UPSERT 한다. 다른 사번/비활성화는 admin-server 환경변수 `MACS_BOOTSTRAP_ADMIN_EMPLOYEE_NUMBER`, `MACS_BOOTSTRAP_ADMIN_ENABLED` 로 변경(기본값으로 충분).
 
 ---
 
@@ -249,7 +243,7 @@ Gateway 동적 라우트의 CRUD. 여기서 저장하는 라우트는 `PROPERTIE
 추가 사용자(예 `2065162`=user)는 init.sql seed 또는 `/auth-manage` 페이지에서 부여. 라이브 DB에 직접 넣으려면:
 
 ```bash
-docker exec -i macs-oracle bash -c "sqlplus -S macs/macs_password@localhost:1521/$ORACLE_SERVICE_NAME" <<'SQL'
+docker exec -i macs-oracle bash -c "sqlplus -S macs/macs_password@localhost:1521/FREE" <<'SQL'
 INSERT INTO PERMISSION (APP_NAME, EMPLOYEE_NUMBER, SYSTEM, CONNECTOR, ROLE)
   VALUES ('portal', '9999999', 'common', 'portal', 'admin');
 COMMIT;
@@ -360,7 +354,6 @@ macs-system/
 | /api/admin/* 호출이 400 "Missing required header: app_name" | gateway의 `HeaderValidationFilter` 가 전역으로 `app_name` + `employee_number` 헤더를 요구. |
 | 커넥터 페이지에서 "등록하기" 버튼이 안 보임 | 현재 사용자의 role이 `admin`이 아니거나, `PERMISSION` row가 없어 `permissions` 배열이 비어있음. |
 | 새 route 저장했는데 gateway가 못 알아봄 | "변경사항 반영" 버튼을 누르지 않았거나, Kafka/Spring Cloud Bus가 떠있지 않음. gateway는 부팅 시 PROPERTIES 테이블에서 전체 route 를 주입받는 단일 소스 구조이므로, 버튼 클릭 후 `curl http://localhost:8080/actuator/gateway/routes`로 반영 확인. 확실한 해결: `docker compose restart gateway-service`. |
-| admin/auth-server 부팅 실패 `ORA-12514` (listener does not currently know of service) | `.env`의 `ORACLE_SERVICE_NAME`이 Oracle 리스너에 등록되지 않은 값. `docker exec macs-oracle lsnrctl status`로 실제 서비스명 확인 후 `.env`를 맞춘다(보통 `FREE` 또는 `FREEPDB1`). |
 | 로그인 시 403 `No permissions for 2078432 in portal` | `PERMISSION` 테이블에 해당 사번 row 없음. admin-server 로그에서 `Permission bootstrap:` 메시지 확인. 없으면 `macs.bootstrap.admin.enabled=true`인지 확인하고 admin-server 재시작. |
 | ORA-18716 ("not in any time zone.DATE") | Hibernate가 Oracle 23 JDBC에서 `TIMESTAMP` 컬럼을 `OffsetDateTime`으로 읽으려고 할 때 발생. 엔티티 필드는 `LocalDateTime`으로 유지할 것. |
 | Swagger-UI "Try it out"에서 CORS 오류 | 해당 백엔드 서비스의 `OpenAPI` bean에 `.servers(List.of(new Server().url("/")))` 가 누락. |
@@ -382,3 +375,4 @@ macs-system/
 - [ ] **Role 체계 enforce** — 현재 `PERMISSION.ROLE` 컬럼은 `admin`/`viewer`/`operator` 값을 저장만 하고 gateway/auth-server 의 권한 검사에서는 무시한다(connector 매칭만 수행). role별 허용 동작(읽기/쓰기 등)을 정의하고 `AuthValidationService` 의 매칭 로직에 role 체크를 추가할 것. 정책이 정해지면 `ROUTE_MIN_ROLE` 기반의 portal 사이드바 가드도 업데이트.
 - [ ] **Gateway → auth-server 검증 호출 캐시** — 모든 보호 route 요청마다 gateway 가 auth-server `/api/auth/validate` 를 1회 호출한다(현재 의도적으로 캐시 없음). 운영 트래픽 측정 후 `(token+app_name+connector → allowed)` 키로 짧은 TTL(예: Caffeine 30s) 캐시 도입을 검토. 캐시 도입 시 권한 변경 즉시 반영을 위한 invalidation 경로(예: `/api/admin/permissions` 변경 → Spring Cloud Bus 이벤트 → gateway 캐시 초기화) 도 함께 설계.
 - [ ] **토큰의 app_name 격리 정책 결정** — 현재 JWT 에는 `employee_number` 만 들어 있어, 한 토큰을 여러 client_app 에서 재사용할 수 있다(권한 체크는 매번 호출 측 `app_name` 헤더 기준). 보안 정책상 토큰을 app 단위로 격리해야 한다면 `/api/auth/token` 에서 `app_name` 헤더를 검증·기록하고 `/validate` 에서 토큰 발급 당시 app_name 과 헤더 app_name 일치 검사를 추가할 것.
+- [ ] **`macs` DB 사용자의 DBA 권한 분리** — PoC 단계 편의로 `infra/oracle/init.sql` 이 `GRANT DBA TO macs` 를 부여하고, 모든 DDL/DML 을 `CONNECT macs/macs_password` 로 실행해 객체 owner schema 를 못 박았다. 운영 전 최소 권한으로 분리할 것: `CREATE SESSION`, `CREATE TABLE`, `CREATE VIEW`, `CREATE SEQUENCE`, `CREATE INDEX`, `UNLIMITED TABLESPACE` 정도가 충분. ALTER/DROP 권한과 다른 스키마 접근 권한은 명시적으로 부여하지 말 것. (배경: SYSTEM 세션에서 `ALTER SESSION SET CURRENT_SCHEMA = macs` 후 `CREATE TABLE` 했을 때 owner 가 의도와 다르게 잡혀 `ORA-00942 "MACS"."PERMISSION" does not exist` 가 났던 이슈로, `CONNECT macs/...` 로 우회하면서 임시로 DBA 부여.)
