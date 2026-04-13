@@ -117,12 +117,6 @@ export default function ConnectorPage() {
                 </p>
               </div>
               <div className="md:col-span-2">
-                <span className="text-[10px] uppercase tracking-wider text-gray-400">URI</span>
-                <p className="text-sm font-mono text-gray-700">
-                  {selected.uri ?? <span className="text-gray-400">-</span>}
-                </p>
-              </div>
-              <div className="md:col-span-2">
                 <span className="text-[10px] uppercase tracking-wider text-gray-400">Description</span>
                 <p className="text-sm text-gray-600">
                   {selected.description || <span className="text-gray-400">-</span>}
@@ -248,12 +242,6 @@ export default function ConnectorPage() {
                           <div>
                             <span className="text-[10px] uppercase tracking-wider text-gray-400">Description</span>
                             <p className="text-sm text-gray-600 line-clamp-2">{c.description}</p>
-                          </div>
-                        )}
-                        {c.uri && (
-                          <div>
-                            <span className="text-[10px] uppercase tracking-wider text-gray-400">URI</span>
-                            <p className="text-xs font-mono text-gray-500 truncate">{c.uri}</p>
                           </div>
                         )}
                       </div>
