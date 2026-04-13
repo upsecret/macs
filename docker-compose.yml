@@ -213,7 +213,7 @@ services:
       - "8888:8888"
     environment:
       SPRING_PROFILES_ACTIVE: docker,jdbc
-      SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle:1521/FREEPDB1
+      SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle:1521/${ORACLE_SERVICE_NAME:-FREE}
       SPRING_DATASOURCE_USERNAME: macs
       SPRING_DATASOURCE_PASSWORD: macs_password
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
@@ -244,7 +244,7 @@ services:
       - "9000:9000"
     environment:
       SPRING_PROFILES_ACTIVE: docker
-      SPRING_R2DBC_URL: r2dbc:oracle://oracle:1521/FREEPDB1
+      SPRING_R2DBC_URL: r2dbc:oracle://oracle:1521/${ORACLE_SERVICE_NAME:-FREE}
       SPRING_R2DBC_USERNAME: macs
       SPRING_R2DBC_PASSWORD: macs_password
       SPRING_DATA_REDIS_HOST: redis

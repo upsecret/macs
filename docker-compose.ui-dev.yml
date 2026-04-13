@@ -1,0 +1,183 @@
+# ============================================================
+# MACS System – UI Development Stack
+#
+# 목적: 포털 UI 작업 시 백엔드/인프라만 컨테이너로 돌리고,
+#       포털(React)은 호스트에서 `npm run dev`로 Vite HMR 사용.
+#
+# 제외: portal, elasticsearch, kibana, apm-server,
+#       otel-collector, elastic-agent  (모니터링·관측성 스택)
+#
+# 실행:
+#   docker compose -f docker-compose.ui-dev.yml up -d
+#   cd portal && npm install && npm run dev
+#   → 브라우저 http://localhost:3000 (Vite 개발 서버, HMR 활성)
+#      /api, /v3, /webjars, /swagger-ui, /actuator 는 gateway(8080)로 프록시됨
+#
+# 중단:
+#   docker compose -f docker-compose.ui-dev.yml down
+# ============================================================
+
+services:
+
+  # ── Oracle Database ──────────────────────────────────────────────
+  oracle:
+    image: gvenzl/oracle-free:23-slim
+    container_name: macs-oracle
+    ports:
+      - "1521:1521"
+    environment:
+      ORACLE_PASSWORD: macs_password
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+      - ./infra/oracle/init.sql:/container-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - macs-network
+
+  # ── Redis ────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: macs-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - macs-network
+
+  # ── Kafka (KRaft, no Zookeeper) ─────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.7.1
+    container_name: macs-kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:29092"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - macs-network
+
+  # ── Admin Server ───────────────────────────────────────────
+  admin-server:
+    build:
+      context: .
+      dockerfile: admin-server/Dockerfile
+    container_name: macs-admin-server
+    ports:
+      - "8888:8888"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker,jdbc
+      SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle:1521/${ORACLE_SERVICE_NAME:-FREE}
+      SPRING_DATASOURCE_USERNAME: macs
+      SPRING_DATASOURCE_PASSWORD: macs_password
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      # OTel SDK 비활성화 — UI dev에서는 관측성 불필요, agent 재시도 로그 억제
+      OTEL_SDK_DISABLED: "true"
+    depends_on:
+      oracle:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:8888/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    networks:
+      - macs-network
+
+  # ── Auth Server ────────────────────────────────────────────
+  auth-server:
+    build:
+      context: .
+      dockerfile: auth-server/Dockerfile
+    container_name: macs-auth-server
+    ports:
+      - "9000:9000"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_R2DBC_URL: r2dbc:oracle://oracle:1521/${ORACLE_SERVICE_NAME:-FREE}
+      SPRING_R2DBC_USERNAME: macs
+      SPRING_R2DBC_PASSWORD: macs_password
+      SPRING_DATA_REDIS_HOST: redis
+      OTEL_SDK_DISABLED: "true"
+    depends_on:
+      oracle:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:9000/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - macs-network
+
+  # ── Gateway Service ────────────────────────────────────────
+  gateway-service:
+    build:
+      context: .
+      dockerfile: gateway-service/Dockerfile
+    container_name: macs-gateway-service
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://admin-server:8888"
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      OTEL_SDK_DISABLED: "true"
+    depends_on:
+      admin-server:
+        condition: service_healthy
+      auth-server:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - macs-network
+
+volumes:
+  oracle-data:
+  redis-data:
+  kafka-data:
+
+networks:
+  macs-network:
+    driver: bridge

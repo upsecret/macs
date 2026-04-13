@@ -1,5 +1,6 @@
 package com.macs.authserver.service;
 
+import com.macs.authserver.dto.PermissionEntry;
 import com.macs.authserver.dto.ValidationRequest;
 import com.macs.authserver.dto.ValidationResponse;
 import io.jsonwebtoken.Claims;
@@ -12,53 +13,65 @@ import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class AuthValidationService {
 
     private final AuthTokenService tokenService;
+    private final AdminPermissionClient adminPermissionClient;
 
-    public AuthValidationService(AuthTokenService tokenService) {
+    public AuthValidationService(AuthTokenService tokenService,
+                                 AdminPermissionClient adminPermissionClient) {
         this.tokenService = tokenService;
+        this.adminPermissionClient = adminPermissionClient;
     }
 
     public Mono<ValidationResponse> validateToken(String bearerToken, ValidationRequest request) {
-        return Mono.fromCallable(() -> {
-            String token = extractToken(bearerToken);
+        return Mono.fromCallable(() -> parseClaims(bearerToken))
+                .flatMap(claims -> {
+                    String employeeNumber = claims.get("employee_number", String.class);
+                    if (employeeNumber == null || employeeNumber.isBlank()) {
+                        return Mono.error(new ResponseStatusException(
+                                HttpStatus.UNAUTHORIZED, "Token missing employee_number"));
+                    }
 
-            Claims claims;
-            try {
-                claims = Jwts.parser()
-                        .verifyWith(tokenService.getSigningKey())
-                        .build()
-                        .parseSignedClaims(token)
-                        .getPayload();
-            } catch (ExpiredJwtException e) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Token expired");
-            } catch (JwtException e) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token");
-            }
+                    String connector = request.connector();
+                    if (connector == null || connector.isBlank()) {
+                        return Mono.just(new ValidationResponse(true, true, employeeNumber));
+                    }
 
-            String appName = claims.get("app_name", String.class);
-            String employeeNumber = claims.get("employee_number", String.class);
+                    String appName = request.appName();
+                    if (appName == null || appName.isBlank()) {
+                        return Mono.error(new ResponseStatusException(
+                                HttpStatus.BAD_REQUEST, "app_name is required when connector is provided"));
+                    }
 
-            @SuppressWarnings("unchecked")
-            List<Map<String, String>> permissions =
-                    (List<Map<String, String>>) claims.get("permissions", List.class);
+                    return adminPermissionClient.fetch(appName, employeeNumber)
+                            .map(perms -> new ValidationResponse(
+                                    true,
+                                    matchesConnector(perms, connector),
+                                    employeeNumber));
+                });
+    }
 
-            String requiredConnector = request.connector();
-            if (requiredConnector != null && !requiredConnector.isBlank()) {
-                boolean allowed = permissions != null && permissions.stream()
-                        .anyMatch(p -> requiredConnector.equals(p.get("connector")));
-                if (!allowed) {
-                    throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                            "Access denied to connector: " + requiredConnector);
-                }
-            }
+    private Claims parseClaims(String bearerToken) {
+        String token = extractToken(bearerToken);
+        try {
+            return Jwts.parser()
+                    .verifyWith(tokenService.getSigningKey())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+        } catch (ExpiredJwtException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Token expired");
+        } catch (JwtException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token");
+        }
+    }
 
-            return new ValidationResponse(true, appName, employeeNumber);
-        });
+    private boolean matchesConnector(List<PermissionEntry> permissions, String connector) {
+        return permissions != null && permissions.stream()
+                .anyMatch(p -> connector.equals(p.connector()));
     }
 
     private String extractToken(String bearerToken) {

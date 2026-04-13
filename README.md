@@ -91,6 +91,24 @@ Observability: OTel Collector → APM Server → Elasticsearch → Kibana
 - Docker 20.10+ / Docker Compose v2
 - (선택) JDK 21 + Gradle 8 — 로컬에서 개별 서비스 빌드 시. 컨테이너 빌드는 내부에서 gradle을 실행하므로 로컬 JDK 없이도 가능.
 
+### 사전 준비 — `libs/` (오프라인 빌드 자산)
+
+서비스 Dockerfile 들은 빌드 단계에서 다음 두 파일을 참조한다:
+
+- `libs/gradle-8.14-bin.zip` (≈132 MB)
+- `libs/opentelemetry-javaagent.jar` (≈24 MB)
+
+저장소 크기를 줄이기 위해 두 파일은 **git 추적 대상이 아니다**. `docker compose build` 전에 사내 미러(또는 외부 다운로드)에서 두 파일을 받아 `libs/` 에 두어야 한다.
+
+```bash
+# 사내 배포 예시
+mkdir -p libs
+cp /sas/mirror/macs/libs/gradle-8.14-bin.zip libs/
+cp /sas/mirror/macs/libs/opentelemetry-javaagent.jar libs/
+```
+
+> 과거 커밋(`ee4c5d6`)에는 LFS 포인터가 남아있지만, repo 루트 `.lfsconfig` 의 `fetchexclude = libs/**` 설정으로 clone/fetch 시 binary 가 다운로드되지 않는다. 사내 git 서버에서 처음 clone 받을 때 `git lfs install` 이후에도 156MB 가 받아지지 않는다면 정상.
+
 ### 전체 기동
 
 ```bash
@@ -126,7 +144,15 @@ docker ps --format "{{.Names}}\t{{.Status}}"
 | Portal | http://localhost:3000 |
 | Gateway Swagger UI | http://localhost:3000/swagger-ui/index.html |
 | Kibana | http://localhost:5601 (elastic / elastic_password) |
-| Oracle | localhost:1521/FREEPDB1 (macs / macs_password) |
+| Oracle | localhost:1521/${ORACLE_SERVICE_NAME:-FREE} (macs / macs_password) |
+
+### 환경변수 (`.env`)
+
+`.env.example` 을 `.env` 로 복사해 환경별 값을 조정한다.
+
+- `ORACLE_SERVICE_NAME` — Oracle 리스너에 등록된 서비스명. 기본 `FREE`. 컨테이너가 PDB(`FREEPDB1`)를 등록하는 환경이면 `FREEPDB1` 로 override.
+- `MACS_BOOTSTRAP_ADMIN_EMPLOYEE_NUMBER` — 초기 admin 사번(기본 `2078432`). admin-server 기동 시 PERMISSION 테이블에 자동 UPSERT.
+- `MACS_BOOTSTRAP_ADMIN_ENABLED` — bootstrap 끄려면 `false`.
 
 ---
 
@@ -138,7 +164,11 @@ docker ps --format "{{.Names}}\t{{.Status}}"
 2. **사번** 입력 (초기 seed: `2078432` = admin, `2065162` = user)
 3. "로그인" 클릭 → 성공 시 `/connector`로 이동
 
-로그인이 되지 않고 다시 `/login`으로 튕기는 경우는 `PERMISSION` 테이블에 해당 사번이 등록되지 않은 경우다. `auth-manage` 페이지 또는 직접 DB에 INSERT로 해결한다.
+로그인이 되지 않고 다시 `/login`으로 튕기는 경우는 `PERMISSION` 테이블에 해당 사번이 등록되지 않은 경우다.
+
+- 기본 admin(`2078432`)은 admin-server 기동 시 `PermissionBootstrapRunner`가 자동으로 UPSERT하므로 볼륨을 재사용해도 복구된다. 혹시 로그에 `Permission bootstrap: inserted portal/2078432` 가 없고 `already present`도 없다면 bootstrap 설정을 확인(`macs.bootstrap.admin.*`).
+- 다른 사번을 초기 admin 으로 쓰려면 `.env`에 `MACS_BOOTSTRAP_ADMIN_EMPLOYEE_NUMBER=사번` 설정 후 admin-server 재시작.
+- 그 외 사번은 `auth-manage` 페이지나 직접 DB INSERT 로 추가.
 
 ### 4.2 페이지 및 권한
 
@@ -205,24 +235,26 @@ Gateway 동적 라우트의 CRUD. 여기서 저장하는 라우트는 `PROPERTIE
 
 ### 5.1 첫 기동 — 초기 권한 부여
 
-Seed 데이터가 `infra/oracle/init.sql`에 포함되어 있다:
+초기 admin 사번(`2078432`)은 두 경로로 보장된다:
 
-```
-('portal','2078432','common','portal','admin')
-('portal','2065162','common','portal','user')
-```
+1. **Seed (`infra/oracle/init.sql`)** — 빈 oracle 볼륨에 대해 최초 기동 시 실행. 재실행에 안전한 `MERGE` 로 작성되어 있다.
+2. **`PermissionBootstrapRunner` (admin-server)** — 기동 시마다 PERMISSION 테이블을 체크해 누락 시 UPSERT. 볼륨 재사용으로 seed가 스킵되어도 동작한다. 설정 기본값:
+   ```
+   macs.bootstrap.admin.enabled=true
+   macs.bootstrap.admin.employee-number=2078432
+   macs.bootstrap.admin.app-name=portal
+   ```
+   `.env`로 override 가능 (`MACS_BOOTSTRAP_ADMIN_*`).
 
-Oracle 볼륨은 영속이므로 이 시드는 **최초 컨테이너 생성 시에만** 실행된다. 이후에 `init.sql`을 수정해도 자동 반영되지 않는다. 라이브 DB에 적용하려면:
+추가 사용자(예 `2065162`=user)는 init.sql seed 또는 `/auth-manage` 페이지에서 부여. 라이브 DB에 직접 넣으려면:
 
 ```bash
-docker exec -i macs-oracle bash -c "sqlplus -S macs/macs_password@localhost:1521/FREEPDB1" <<'SQL'
+docker exec -i macs-oracle bash -c "sqlplus -S macs/macs_password@localhost:1521/$ORACLE_SERVICE_NAME" <<'SQL'
 INSERT INTO PERMISSION (APP_NAME, EMPLOYEE_NUMBER, SYSTEM, CONNECTOR, ROLE)
   VALUES ('portal', '9999999', 'common', 'portal', 'admin');
 COMMIT;
 SQL
 ```
-
-또는 이미 admin으로 로그인된 상태에서 `/auth-manage` 페이지의 "권한 부여" 섹션을 이용.
 
 ### 5.2 새 백엔드 서비스를 gateway에 붙이기
 
@@ -327,7 +359,9 @@ macs-system/
 | /api/admin/* 호출이 401 | `Authorization: Bearer ...` 헤더 누락. portal의 axios interceptor가 자동 주입하지만 raw fetch로 호출한 경우 직접 넣어야 함. |
 | /api/admin/* 호출이 400 "Missing required header: app_name" | gateway의 `HeaderValidationFilter` 가 전역으로 `app_name` + `employee_number` 헤더를 요구. |
 | 커넥터 페이지에서 "등록하기" 버튼이 안 보임 | 현재 사용자의 role이 `admin`이 아니거나, `PERMISSION` row가 없어 `permissions` 배열이 비어있음. |
-| 새 route 저장했는데 gateway가 못 알아봄 | "Config 전파" 버튼을 누르지 않았거나, Kafka/Spring Cloud Bus가 떠있지 않음. 확실한 해결: `docker compose restart gateway-service`. |
+| 새 route 저장했는데 gateway가 못 알아봄 | "변경사항 반영" 버튼을 누르지 않았거나, Kafka/Spring Cloud Bus가 떠있지 않음. gateway는 부팅 시 PROPERTIES 테이블에서 전체 route 를 주입받는 단일 소스 구조이므로, 버튼 클릭 후 `curl http://localhost:8080/actuator/gateway/routes`로 반영 확인. 확실한 해결: `docker compose restart gateway-service`. |
+| admin/auth-server 부팅 실패 `ORA-12514` (listener does not currently know of service) | `.env`의 `ORACLE_SERVICE_NAME`이 Oracle 리스너에 등록되지 않은 값. `docker exec macs-oracle lsnrctl status`로 실제 서비스명 확인 후 `.env`를 맞춘다(보통 `FREE` 또는 `FREEPDB1`). |
+| 로그인 시 403 `No permissions for 2078432 in portal` | `PERMISSION` 테이블에 해당 사번 row 없음. admin-server 로그에서 `Permission bootstrap:` 메시지 확인. 없으면 `macs.bootstrap.admin.enabled=true`인지 확인하고 admin-server 재시작. |
 | ORA-18716 ("not in any time zone.DATE") | Hibernate가 Oracle 23 JDBC에서 `TIMESTAMP` 컬럼을 `OffsetDateTime`으로 읽으려고 할 때 발생. 엔티티 필드는 `LocalDateTime`으로 유지할 것. |
 | Swagger-UI "Try it out"에서 CORS 오류 | 해당 백엔드 서비스의 `OpenAPI` bean에 `.servers(List.of(new Server().url("/")))` 가 누락. |
 
@@ -338,3 +372,13 @@ macs-system/
 - 권한 모델 재설계 경위와 현재 흐름: `git log --grep="auth"` 참조
 - 커넥터 레지스트리 도입: `git log --grep="connector"` 참조
 - 지난 변경사항 요약은 commit `93c0523` 메시지 참고
+
+---
+
+## 9. TODO
+
+권한 체계 v2 (token에서 권한 분리, validate에서 체크) 도입 후 남은 후속 작업.
+
+- [ ] **Role 체계 enforce** — 현재 `PERMISSION.ROLE` 컬럼은 `admin`/`viewer`/`operator` 값을 저장만 하고 gateway/auth-server 의 권한 검사에서는 무시한다(connector 매칭만 수행). role별 허용 동작(읽기/쓰기 등)을 정의하고 `AuthValidationService` 의 매칭 로직에 role 체크를 추가할 것. 정책이 정해지면 `ROUTE_MIN_ROLE` 기반의 portal 사이드바 가드도 업데이트.
+- [ ] **Gateway → auth-server 검증 호출 캐시** — 모든 보호 route 요청마다 gateway 가 auth-server `/api/auth/validate` 를 1회 호출한다(현재 의도적으로 캐시 없음). 운영 트래픽 측정 후 `(token+app_name+connector → allowed)` 키로 짧은 TTL(예: Caffeine 30s) 캐시 도입을 검토. 캐시 도입 시 권한 변경 즉시 반영을 위한 invalidation 경로(예: `/api/admin/permissions` 변경 → Spring Cloud Bus 이벤트 → gateway 캐시 초기화) 도 함께 설계.
+- [ ] **토큰의 app_name 격리 정책 결정** — 현재 JWT 에는 `employee_number` 만 들어 있어, 한 토큰을 여러 client_app 에서 재사용할 수 있다(권한 체크는 매번 호출 측 `app_name` 헤더 기준). 보안 정책상 토큰을 app 단위로 격리해야 한다면 `/api/auth/token` 에서 `app_name` 헤더를 검증·기록하고 `/validate` 에서 토큰 발급 당시 app_name 과 헤더 app_name 일치 검사를 추가할 것.

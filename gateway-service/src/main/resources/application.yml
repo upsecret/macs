@@ -14,47 +14,8 @@ spring:
     gateway:
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
-      routes:
-        # ── Service Routes (기본 유량: 50/s, burst 100) ──
-        - id: auth-route
-          uri: http://auth-server:9000
-          predicates:
-            - Path=/api/auth/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 50
-                redis-rate-limiter.burstCapacity: 100
-                key-resolver: "#{@headerKeyResolver}"
-                deny-empty-key: false
-        - id: admin-route
-          uri: http://admin-server:8888
-          predicates:
-            - Path=/api/config/**,/api/admin/**
-          filters:
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 50
-                redis-rate-limiter.burstCapacity: 100
-                key-resolver: "#{@headerKeyResolver}"
-                deny-empty-key: false
-            - name: AuthValidation
-              args:
-                connector: portal
-
-        # ── Swagger Aggregation ──
-        - id: auth-api-docs
-          uri: http://auth-server:9000
-          predicates:
-            - Path=/v3/api-docs/auth-server
-          filters:
-            - RewritePath=/v3/api-docs/auth-server, /v3/api-docs
-        - id: admin-api-docs
-          uri: http://admin-server:8888
-          predicates:
-            - Path=/v3/api-docs/admin-server
-          filters:
-            - RewritePath=/v3/api-docs/admin-server, /v3/api-docs
+      # routes 는 admin-server(config server) PROPERTIES 테이블에서 주입됨.
+      # 수정은 portal /route-config → "변경사항 반영" 으로 실시간 반영.
 
   data:
     redis:
@@ -68,12 +29,14 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,metrics,prometheus,gateway
+        include: health,metrics,prometheus,gateway,busrefresh,refresh,env
   endpoint:
     health:
       show-details: always
     gateway:
       enabled: true
+    env:
+      show-values: ALWAY
 
 # ── SpringDoc Swagger ────────────────────────────────────────
 springdoc:

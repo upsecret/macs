@@ -129,19 +129,19 @@ export default function AuthManage() {
     e.preventDefault();
     setTokenError(null);
     setTokenResult(null);
-    if (!tokenApp.trim() || !tokenEmp.trim()) {
-      setTokenError("app_name / employee_number 필수");
+    if (!tokenEmp.trim()) {
+      setTokenError("employee_number 필수");
       return;
     }
     setIssuing(true);
     try {
       const { data } = await rawClient.post<AuthResponse>(
         "/api/auth/token",
-        { app_name: tokenApp.trim(), employee_number: tokenEmp.trim() },
+        { employee_number: tokenEmp.trim() },
         {
           headers: {
             "Content-Type": "application/json",
-            app_name: tokenApp.trim(),
+            app_name: tokenApp.trim() || "portal",
             employee_number: tokenEmp.trim(),
           },
         },
@@ -353,7 +353,7 @@ export default function AuthManage() {
       <div className="bg-white rounded-lg shadow p-6 mt-6">
         <h2 className="text-lg font-semibold text-gray-800 mb-1">토큰 발급 (디버그)</h2>
         <p className="text-xs text-gray-500 mb-4">
-          임의의 (app_name, employee_number)에 대해 즉시 JWT를 받아본다. 현재 로그인 세션에는 영향을 주지 않는다.
+          임의의 employee_number 에 대해 JWT 를 받아본다. 권한은 토큰에 들어있지 않으므로 payload 엔 sub 만 보임. 현재 로그인 세션에는 영향을 주지 않는다.
         </p>
 
         <form onSubmit={handleIssueToken} className="flex items-end gap-2 mb-4">
@@ -409,37 +409,6 @@ export default function AuthManage() {
               <pre className="bg-gray-50 border border-gray-200 rounded p-3 text-[11px] font-mono text-gray-700 whitespace-pre-wrap break-all">
                 {tokenResult.token}
               </pre>
-            </div>
-
-            {/* Permissions */}
-            <div>
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Permissions</span>
-              {tokenResult.permissions.length === 0 ? (
-                <p className="text-sm text-gray-400 mt-1">권한 없음</p>
-              ) : (
-                <table className="w-full text-sm mt-1 border border-gray-200 rounded">
-                  <thead className="bg-header">
-                    <tr>
-                      <th className="px-3 py-1.5 text-left text-xs font-semibold text-gray-600 uppercase">System</th>
-                      <th className="px-3 py-1.5 text-left text-xs font-semibold text-gray-600 uppercase">Connector</th>
-                      <th className="px-3 py-1.5 text-left text-xs font-semibold text-gray-600 uppercase">Role</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {tokenResult.permissions.map((p, i) => (
-                      <tr key={i}>
-                        <td className="px-3 py-1.5 text-gray-700">{p.system}</td>
-                        <td className="px-3 py-1.5 font-mono text-gray-700">{p.connector}</td>
-                        <td className="px-3 py-1.5">
-                          <span className="inline-block px-2 py-0.5 rounded bg-secondary text-primary text-xs font-mono">
-                            {p.role}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
             </div>
 
             {/* JWT decode */}

@@ -1,0 +1,5 @@
+# 과거 커밋(ee4c5d6)에 libs/*.{zip,jar} LFS 포인터가 남아있다.
+# clone/fetch 시 156MB 짜리 binary 를 받지 않도록 fetch 에서 제외.
+# 사내 배포 시에는 별도 미러에서 libs/ 로 직접 복사한다.
+[lfs]
+    fetchexclude = libs/**

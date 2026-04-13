@@ -15,3 +15,8 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# Vendored offline-build artifacts (gradle dist + OTel agent).
+# 사내 배포 시 별도 미러에서 libs/ 로 직접 복사한다. README 9. TODO 참조.
+libs/*.zip
+libs/*.jar

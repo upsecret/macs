@@ -8,7 +8,7 @@ spring:
     active: jdbc
 
   datasource:
-    url: jdbc:oracle:thin:@oracle:1521/FREEPDB1
+    url: jdbc:oracle:thin:@oracle:1521/${ORACLE_SERVICE_NAME:FREE}
     username: macs
     password: macs_password
     driver-class-name: oracle.jdbc.OracleDriver
@@ -55,3 +55,16 @@ otel:
   exporter:
     otlp:
       endpoint: http://otel-collector:4317
+
+# ── Bootstrap admin (PermissionBootstrapRunner) ──────────────
+# admin-server 기동 시 PERMISSION 테이블에 초기 admin 권한을 UPSERT.
+# init.sql 이 볼륨 재사용으로 스킵되는 상황을 보정.
+macs:
+  bootstrap:
+    admin:
+      enabled: ${MACS_BOOTSTRAP_ADMIN_ENABLED:true}
+      employee-number: ${MACS_BOOTSTRAP_ADMIN_EMPLOYEE_NUMBER:2078432}
+      app-name: ${MACS_BOOTSTRAP_ADMIN_APP_NAME:portal}
+      system: common
+      connector: portal
+      role: admin

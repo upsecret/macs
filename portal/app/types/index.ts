@@ -6,8 +6,12 @@ export interface PermissionEntry {
 
 export interface AuthResponse {
   token: string;
-  app_name: string;
   employee_number: string;
+}
+
+export interface UserPermissionsResponse {
+  appName: string;
+  employeeNumber: string;
   permissions: PermissionEntry[];
 }
 
