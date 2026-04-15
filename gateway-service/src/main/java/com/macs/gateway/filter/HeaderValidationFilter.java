@@ -4,6 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.cloud.gateway.route.Route;
+import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
 import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpStatus;
@@ -13,11 +15,19 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Set;
 
 @Component
 public class HeaderValidationFilter implements GlobalFilter, Ordered {
 
     private static final Logger log = LoggerFactory.getLogger(HeaderValidationFilter.class);
+
+    /**
+     * 헤더 검증을 건너뛸 gateway route id 목록.
+     * 포털 SPA 는 HTML/정적 리소스라 app_name/employee_number 헤더가 없음.
+     * 이외 모든 라우트(auth, admin, rms, fdc, token-dic 등)는 검증 대상.
+     */
+    private static final Set<String> SKIPPED_ROUTE_IDS = Set.of("portal-route");
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -47,11 +57,11 @@ public class HeaderValidationFilter implements GlobalFilter, Ordered {
     }
 
     private boolean shouldSkip(ServerWebExchange exchange) {
-        String path = exchange.getRequest().getURI().getPath();
-        return path.startsWith("/actuator")
-                || path.startsWith("/swagger-ui")
-                || path.startsWith("/v3/api-docs")
-                || path.startsWith("/webjars");
+        // 매칭된 gateway route 가 포털이면 skip. 어떤 gateway route 에도 매칭되지
+        // 않은 요청(/actuator, /swagger-ui 등 Spring Boot 내부 핸들러가 처리)은
+        // 그 자체로 이 필터 체인을 타지 않음 → 별도 처리 불필요.
+        Route route = (Route) exchange.getAttributes().get(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR);
+        return route != null && SKIPPED_ROUTE_IDS.contains(route.getId());
     }
 
     static Mono<Void> writeError(ServerWebExchange exchange, HttpStatus status, String message) {

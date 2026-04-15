@@ -291,12 +291,7 @@ MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PR
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
 MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.server.webflux.routes[4].predicates[0]' PROP_KEY,'Path=/portal/**' PROP_VALUE FROM dual) s
-  ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
-  WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
-    VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
-MERGE INTO PROPERTIES t USING (SELECT 'gateway-service' APPLICATION,'default' PROFILE,'main' LABEL,
-    'spring.cloud.gateway.server.webflux.routes[4].filters[0]' PROP_KEY,'StripPrefix=1' PROP_VALUE FROM dual) s
+    'spring.cloud.gateway.server.webflux.routes[4].predicates[0]' PROP_KEY,'Path=/,/login,/connector/**,/route-config/**,/auth-manage/**,/settings/**,/assets/**,/favicon.ico,/favicon.svg,/manifest.json' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);
