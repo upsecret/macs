@@ -308,6 +308,31 @@ function OperationRow({ ep }: { ep: Endpoint }) {
   );
 }
 
+/* ── 환경별 base URL 치환 ────────────────────────────────
+ * API 문서의 servers[].url 은 백엔드가 인식한 내부 호스트(e.g. http://connector:8080)
+ * 라 사용자에게 노출할 주소로 맞지 않는다. 브라우저에서 보고 있는 hostname 을
+ * 기준으로 prod / qa / 그 외로 나눠 baseURL 을 재작성한다.
+ */
+function effectiveBaseUrl(): string {
+  if (typeof window === "undefined") return "http://localhost";
+  const host = window.location.hostname;
+  if (host === "macs.skhynix.com") return "https://macs.skhynix.com";
+  if (host === "qa.macs.skhynix.com") return "https://qa.macs.skhynix.com";
+  return "http://localhost";
+}
+
+function rewriteServerUrl(specUrl: string): string {
+  const base = effectiveBaseUrl();
+  let pathPart = "";
+  try {
+    const u = new URL(specUrl, "http://placeholder.invalid");
+    pathPart = u.pathname === "/" ? "" : u.pathname;
+  } catch {
+    pathPart = "";
+  }
+  return `${base}${pathPart}`;
+}
+
 /* ── 메인 뷰어 ──────────────────────────────────────────── */
 
 interface Props {
@@ -361,7 +386,13 @@ export default function ApiDocsViewer({ connectorId }: Props) {
   }
 
   const info = doc.info ?? {};
-  const servers = doc.servers ?? [];
+  const rawServers = doc.servers ?? [];
+  const servers = rawServers.length > 0
+    ? rawServers.map((s) => ({
+        url: rewriteServerUrl(s.url),
+        description: s.description,
+      }))
+    : [{ url: effectiveBaseUrl(), description: undefined as string | undefined }];
   const tagNames = Object.keys(groups).sort((a, b) => a.localeCompare(b));
 
   return (

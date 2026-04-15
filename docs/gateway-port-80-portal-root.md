@@ -212,3 +212,94 @@ curl http://localhost/actuator/gateway/routes | jq '.[] | select(.route_id=="por
 | `/api/config/routes` (헤더 有) | 401 `Missing Authorization header` | 헤더 통과 후 AuthValidation 에서 JWT 요구 |
 
 → portal-route 로 매칭된 요청만 header filter skip, 그 외 `/api/**` 백엔드 호출은 변함없이 검증. `/rms/api`, `/fdc/api`, `/token-dic` 등 향후 추가될 route 도 route id 기반이라 자동 검증 대상.
+
+---
+
+## 후속 변경 — 커넥터 API 문서의 Base URL 환경별 표시
+
+### 배경
+
+커넥터 상세 페이지의 "API 문서" 섹션은 OpenAPI 스펙의 `servers[].url` 을 그대로 화면에 표시한다. 그런데 이 값은 백엔드 내부 호스트(e.g. `http://connector:8080`) 이거나 개발 환경용 값이라 **사용자가 실제로 접속 가능한 외부 주소가 아님**. 사용자 입장에서 "이 API 의 base URL 이 뭐지" 를 파악하기 어렵다.
+
+### 요구 사항
+
+접속 중인 환경에 맞춰 base URL 을 표시:
+- prod (`macs.skhynix.com`) → `https://macs.skhynix.com`
+- qa (`qa.macs.skhynix.com`) → `https://qa.macs.skhynix.com`
+- 그 외 (localhost / IP / 기타) → `http://localhost`
+
+### 구현 — `portal/app/components/ApiDocsViewer.tsx`
+
+브라우저 `window.location.hostname` 기반 런타임 판별. 빌드 시 환경을 박지 않기 때문에 **단일 빌드 산출물로 모든 환경에 배포 가능**.
+
+헬퍼 두 개를 파일 상단에 추가:
+
+```ts
+function effectiveBaseUrl(): string {
+  if (typeof window === "undefined") return "http://localhost";
+  const host = window.location.hostname;
+  if (host === "macs.skhynix.com") return "https://macs.skhynix.com";
+  if (host === "qa.macs.skhynix.com") return "https://qa.macs.skhynix.com";
+  return "http://localhost";
+}
+
+function rewriteServerUrl(specUrl: string): string {
+  const base = effectiveBaseUrl();
+  let pathPart = "";
+  try {
+    const u = new URL(specUrl, "http://placeholder.invalid");
+    pathPart = u.pathname === "/" ? "" : u.pathname;
+  } catch {
+    pathPart = "";
+  }
+  return `${base}${pathPart}`;
+}
+```
+
+원본 스펙의 `servers` 를 rewrite 후 렌더:
+
+```diff
+ const info = doc.info ?? {};
+-const servers = doc.servers ?? [];
++const rawServers = doc.servers ?? [];
++const servers = rawServers.length > 0
++  ? rawServers.map((s) => ({
++      url: rewriteServerUrl(s.url),
++      description: s.description,
++    }))
++  : [{ url: effectiveBaseUrl(), description: undefined as string | undefined }];
+ const tagNames = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+```
+
+**특징**:
+- 스펙의 path 부분(`/api/v1` 등) 은 보존하고 origin(scheme + host + port) 만 치환
+- 스펙에 `servers` 가 비어 있어도 `effectiveBaseUrl()` 한 건을 기본값으로 표시
+- `typeof window === "undefined"` 가드는 SSR/사전 렌더 시 안전망 (현재는 CSR 이지만 미래 대비)
+
+### 검증
+
+Node 로 로직 단위 테스트:
+
+| hostname | 원본 `server.url` | 표시값 |
+|---|---|---|
+| `macs.skhynix.com` | `http://backend:8080/api/v1` | `https://macs.skhynix.com/api/v1` |
+| `qa.macs.skhynix.com` | `http://backend:8080/api/v1` | `https://qa.macs.skhynix.com/api/v1` |
+| `localhost` | `http://backend:8080/api/v1` | `http://localhost/api/v1` |
+| `192.168.1.5` | `http://connector-svc:9000/` | `http://localhost` |
+| `some-other-host` | `http://example.com/api/v2/foo` | `http://localhost/api/v2/foo` |
+| `macs.skhynix.com` | `/api/v1` (path only) | `https://macs.skhynix.com/api/v1` |
+
+빌드 / 배포 확인:
+- `docker compose up -d --build portal` 재빌드 완료
+- 번들 chunk `assets/connector-*.js` 안에 `macs.skhynix.com`, `qa.macs.skhynix.com` 상수 확인
+- `http://localhost/connector` HTTP 200 정상 렌더
+
+실제 브라우저 end-to-end 테스트는 prod / qa DNS 접근이 필요하므로 생략 (로직은 `window.location.hostname` 단일 소스 기반이라 환경 간 차이 없음).
+
+### 향후 환경 추가
+
+`effectiveBaseUrl()` 의 if 체인에 호스트 매핑 한 줄 추가하면 됨:
+```ts
+if (host === "dev.macs.skhynix.com") return "https://dev.macs.skhynix.com";
+```
+Vite env 로 옮기는 선택지도 있으나 현재 요구사항 규모에선 오버엔지니어링.
