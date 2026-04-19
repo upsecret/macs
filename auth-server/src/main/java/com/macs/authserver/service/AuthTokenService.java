@@ -28,21 +28,29 @@ public class AuthTokenService {
     }
 
     public Mono<TokenResponse> issueToken(TokenRequest request) {
+        String clientApp = request.clientApp();
         String empNo = request.employeeNumber();
+        if (clientApp == null || clientApp.isBlank()) {
+            log.warn("Token issuance rejected: empty client_app");
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "client_app required"));
+        }
         if (empNo == null || empNo.isBlank()) {
-            log.warn("Token issuance rejected: empty employee_number");
+            log.warn("Token issuance rejected: empty employee_number (client_app={})", clientApp);
             return Mono.error(new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "employee_number required"));
         }
-        String token = generateJwt(empNo);
-        log.info("Token issued for employee_number={} expires_in={}s", empNo, jwtProperties.expiration());
-        return Mono.just(new TokenResponse(token, empNo));
+        String token = generateJwt(clientApp, empNo);
+        log.info("Token issued client_app={} employee_number={} expires_in={}s",
+                clientApp, empNo, jwtProperties.expiration());
+        return Mono.just(new TokenResponse(token, clientApp, empNo));
     }
 
-    private String generateJwt(String empNo) {
+    private String generateJwt(String clientApp, String empNo) {
         long now = System.currentTimeMillis();
         return Jwts.builder()
                 .subject(empNo)
+                .claim("client_app", clientApp)
                 .claim("employee_number", empNo)
                 .issuedAt(new Date(now))
                 .expiration(new Date(now + jwtProperties.expiration() * 1000L))

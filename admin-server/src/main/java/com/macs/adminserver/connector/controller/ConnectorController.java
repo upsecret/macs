@@ -3,6 +3,7 @@ package com.macs.adminserver.connector.controller;
 import com.macs.adminserver.connector.dto.AvailableRouteResponse;
 import com.macs.adminserver.connector.dto.ConnectorRequest;
 import com.macs.adminserver.connector.dto.ConnectorResponse;
+import com.macs.adminserver.connector.dto.RouteMetadataResponse;
 import com.macs.adminserver.connector.service.ConnectorService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -62,6 +63,15 @@ public class ConnectorController {
     @Operation(summary = "Delete a connector (gateway route is untouched)")
     public void delete(@PathVariable String id) {
         service.delete(id);
+    }
+
+    @GetMapping("/{id}/route-metadata")
+    @Operation(summary = "Gateway route metadata for path transformation",
+            description = "Returns the Path predicate pattern, StripPrefix value, and ordered RewritePath rules " +
+                    "for the gateway route bound to the given connector. Used by Portal API Docs viewer to " +
+                    "transform upstream paths to gateway-facing paths.")
+    public RouteMetadataResponse routeMetadata(@PathVariable String id) {
+        return service.getRouteMetadata(id);
     }
 
     @GetMapping(value = "/{id}/api-docs", produces = MediaType.APPLICATION_JSON_VALUE)

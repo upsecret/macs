@@ -48,6 +48,14 @@ interface ResponseObj {
   content?: Record<string, { schema?: unknown }>;
 }
 
+/* ── Gateway route metadata (admin-server) ────────────────── */
+
+interface RouteMetadata {
+  pathPredicate: string | null;
+  stripPrefix: number | null;
+  rewriteRules: Array<{ regexp: string; replacement: string }>;
+}
+
 /* ── 메서드 배지 색상 ────────────────────────────────────── */
 
 const METHOD_COLOR: Record<string, string> = {
@@ -70,11 +78,12 @@ interface Endpoint {
   op: Operation;
 }
 
-function flatten(doc: OpenApiDoc): Endpoint[] {
+function flatten(doc: OpenApiDoc, meta: RouteMetadata | null): Endpoint[] {
   const list: Endpoint[] = [];
   const paths = doc.paths ?? {};
-  for (const [path, item] of Object.entries(paths)) {
+  for (const [rawPath, item] of Object.entries(paths)) {
     if (!item || typeof item !== "object") continue;
+    const path = transformPath(rawPath, meta);
     for (const method of HTTP_METHODS) {
       const op = (item as PathItem)[method];
       if (op && typeof op === "object") {
@@ -96,6 +105,35 @@ function groupByTag(endpoints: Endpoint[]): Record<string, Endpoint[]> {
   return groups;
 }
 
+/* ── Path 변환 (upstream → gateway) ────────────────────────
+ * Gateway 라우트는 `/<prefix>/**` 로 들어온 요청에서 StripPrefix=N 을 떼고
+ * upstream 으로 전달한다. OpenAPI 문서는 upstream 기준의 경로만 알고 있으므로,
+ * 사용자에게 보여줄 때는 gateway-facing 경로로 되돌려야 한다.
+ *
+ * 본 구현은 pathPredicate 의 앞쪽 N 세그먼트(와일드카드 제외)를 upstream path
+ * 앞에 prepend 하는 방식만 지원한다. RewritePath 의 일반적 regex 반전은 불가능하므로
+ * 단순한 prefix-strip 형태(`/x/(?<r>.*)` → `/${r}`)만 보정 대상으로 간주한다.
+ */
+function transformPath(upstreamPath: string, meta: RouteMetadata | null): string {
+  if (!meta) return upstreamPath;
+  const prefix = gatewayPrefix(meta);
+  if (!prefix) return upstreamPath;
+  const normalized = upstreamPath.startsWith("/") ? upstreamPath : "/" + upstreamPath;
+  return prefix + normalized;
+}
+
+function gatewayPrefix(meta: RouteMetadata): string {
+  if (!meta.pathPredicate) return "";
+  const n = meta.stripPrefix ?? 0;
+  if (n <= 0) return "";
+  const segs = meta.pathPredicate
+    .split("/")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && s !== "**" && s !== "*");
+  if (segs.length === 0) return "";
+  return "/" + segs.slice(0, n).join("/");
+}
+
 /* ── 게이트웨이 공통 헤더 안내 ──────────────────────────── */
 
 interface GatewayUsageNoticeProps {
@@ -104,16 +142,18 @@ interface GatewayUsageNoticeProps {
   samplePath?: string;
   /** 첫 번째 endpoint method (있으면 curl 예시에 사용) */
   sampleMethod?: string;
+  /** 현재 환경의 gateway base URL (host) */
+  baseUrl: string;
 }
 
-function GatewayUsageNotice({ connectorId, samplePath, sampleMethod }: GatewayUsageNoticeProps) {
+function GatewayUsageNotice({ connectorId, samplePath, sampleMethod, baseUrl }: GatewayUsageNoticeProps) {
   const path = samplePath ?? `/${connectorId}`;
   const method = (sampleMethod ?? "get").toUpperCase();
   const methodFlag = method === "GET" ? "" : ` -X ${method}`;
 
-  const curlSample = `curl${methodFlag} 'http://localhost:8080${path}' \\
-  -H 'app_name: portal' \\
-  -H 'employee_number: 2078432' \\
+  const curlSample = `curl${methodFlag} '${baseUrl}${path}' \\
+  -H 'Client-App: portal' \\
+  -H 'Employee-Number: 2078432' \\
   -H 'Authorization: Bearer <JWT>'   # AuthValidation 적용된 route 만`;
 
   const copyCurl = () => {
@@ -136,11 +176,11 @@ function GatewayUsageNotice({ connectorId, samplePath, sampleMethod }: GatewayUs
           </p>
           <ul className="mt-2 space-y-1 text-xs text-gray-700">
             <li>
-              <code className="font-mono px-1.5 py-0.5 rounded bg-white border border-gray-200">app_name</code>
+              <code className="font-mono px-1.5 py-0.5 rounded bg-white border border-gray-200">Client-App</code>
               {" "}— 호출하는 client 식별자 (예: <code className="font-mono">portal</code>)
             </li>
             <li>
-              <code className="font-mono px-1.5 py-0.5 rounded bg-white border border-gray-200">employee_number</code>
+              <code className="font-mono px-1.5 py-0.5 rounded bg-white border border-gray-200">Employee-Number</code>
               {" "}— 사번 (예: <code className="font-mono">2078432</code>)
             </li>
             <li>
@@ -308,29 +348,16 @@ function OperationRow({ ep }: { ep: Endpoint }) {
   );
 }
 
-/* ── 환경별 base URL 치환 ────────────────────────────────
- * API 문서의 servers[].url 은 백엔드가 인식한 내부 호스트(e.g. http://connector:8080)
- * 라 사용자에게 노출할 주소로 맞지 않는다. 브라우저에서 보고 있는 hostname 을
- * 기준으로 prod / qa / 그 외로 나눠 baseURL 을 재작성한다.
+/* ── 환경별 base URL ─────────────────────────────────────
+ * Gateway 가 노출되는 외부 host. 브라우저에서 보고 있는 hostname 을 기준으로
+ * prod / qa / 로컬을 구분한다. curl 예시의 host 에 사용.
  */
 function effectiveBaseUrl(): string {
-  if (typeof window === "undefined") return "http://localhost";
+  if (typeof window === "undefined") return "http://localhost:8080";
   const host = window.location.hostname;
   if (host === "macs.skhynix.com") return "https://macs.skhynix.com";
   if (host === "qa.macs.skhynix.com") return "https://qa.macs.skhynix.com";
-  return "http://localhost";
-}
-
-function rewriteServerUrl(specUrl: string): string {
-  const base = effectiveBaseUrl();
-  let pathPart = "";
-  try {
-    const u = new URL(specUrl, "http://placeholder.invalid");
-    pathPart = u.pathname === "/" ? "" : u.pathname;
-  } catch {
-    pathPart = "";
-  }
-  return `${base}${pathPart}`;
+  return "http://localhost:8080";
 }
 
 /* ── 메인 뷰어 ──────────────────────────────────────────── */
@@ -353,9 +380,24 @@ export default function ApiDocsViewer({ connectorId }: Props) {
     [connectorId],
   );
 
-  const endpoints = useMemo(() => (doc ? flatten(doc) : []), [doc]);
+  // Route metadata 는 보조 정보 — 실패해도 뷰어는 그대로 동작해야 하므로 실패 시 null 로 취급.
+  const { data: routeMeta } = useResource<RouteMetadata | null>(
+    () =>
+      api
+        .get<RouteMetadata>(`/api/admin/connectors/${connectorId}/route-metadata`)
+        .then((r) => r.data)
+        .catch(() => null),
+    [connectorId],
+    { initialData: null },
+  );
+
+  const endpoints = useMemo(
+    () => (doc ? flatten(doc, routeMeta ?? null) : []),
+    [doc, routeMeta],
+  );
   const groups = useMemo(() => groupByTag(endpoints), [endpoints]);
   const sample = endpoints[0];
+  const baseUrl = effectiveBaseUrl();
 
   if (loading) {
     return (
@@ -386,13 +428,7 @@ export default function ApiDocsViewer({ connectorId }: Props) {
   }
 
   const info = doc.info ?? {};
-  const rawServers = doc.servers ?? [];
-  const servers = rawServers.length > 0
-    ? rawServers.map((s) => ({
-        url: rewriteServerUrl(s.url),
-        description: s.description,
-      }))
-    : [{ url: effectiveBaseUrl(), description: undefined as string | undefined }];
+  const servers = doc.servers ?? [];
   const tagNames = Object.keys(groups).sort((a, b) => a.localeCompare(b));
 
   return (
@@ -443,6 +479,7 @@ export default function ApiDocsViewer({ connectorId }: Props) {
         connectorId={connectorId}
         samplePath={sample?.path}
         sampleMethod={sample?.method}
+        baseUrl={baseUrl}
       />
 
       {/* ── Endpoints ───────────────────────── */}

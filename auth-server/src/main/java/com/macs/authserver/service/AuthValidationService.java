@@ -31,40 +31,66 @@ public class AuthValidationService {
     }
 
     public Mono<ValidationResponse> validateToken(String bearerToken, ValidationRequest request) {
+        String requestClientApp = request.clientApp();
+        String requestEmployeeNumber = request.employeeNumber();
+        String connector = request.connector();
+
+        if (requestClientApp == null || requestClientApp.isBlank()) {
+            log.warn("Validate rejected: missing client_app in request body");
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "client_app is required"));
+        }
+        if (requestEmployeeNumber == null || requestEmployeeNumber.isBlank()) {
+            log.warn("Validate rejected: missing employee_number in request body (client_app={})", requestClientApp);
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "employee_number is required"));
+        }
+        if (connector == null || connector.isBlank()) {
+            log.warn("Validate rejected: missing connector (client_app={} emp={})",
+                    requestClientApp, requestEmployeeNumber);
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "connector is required"));
+        }
+
         return Mono.fromCallable(() -> parseClaims(bearerToken))
                 .flatMap(claims -> {
-                    String employeeNumber = claims.get("employee_number", String.class);
-                    if (employeeNumber == null || employeeNumber.isBlank()) {
+                    String tokenClientApp = claims.get("client_app", String.class);
+                    String tokenEmployeeNumber = claims.get("employee_number", String.class);
+
+                    if (tokenClientApp == null || tokenClientApp.isBlank()) {
+                        log.warn("Token validation failed: missing client_app in claims");
+                        return Mono.error(new ResponseStatusException(
+                                HttpStatus.UNAUTHORIZED, "Token missing client_app"));
+                    }
+                    if (tokenEmployeeNumber == null || tokenEmployeeNumber.isBlank()) {
                         log.warn("Token validation failed: missing employee_number in claims");
                         return Mono.error(new ResponseStatusException(
                                 HttpStatus.UNAUTHORIZED, "Token missing employee_number"));
                     }
-
-                    String connector = request.connector();
-                    if (connector == null || connector.isBlank()) {
-                        log.info("Token valid (signature+expiry only) emp={}", employeeNumber);
-                        return Mono.just(new ValidationResponse(true, true, employeeNumber));
-                    }
-
-                    String appName = request.appName();
-                    if (appName == null || appName.isBlank()) {
-                        log.warn("Validate rejected: connector={} provided without app_name (emp={})",
-                                connector, employeeNumber);
+                    if (!tokenClientApp.equals(requestClientApp)) {
+                        log.warn("Token validation failed: client_app mismatch token={} request={}",
+                                tokenClientApp, requestClientApp);
                         return Mono.error(new ResponseStatusException(
-                                HttpStatus.BAD_REQUEST, "app_name is required when connector is provided"));
+                                HttpStatus.UNAUTHORIZED, "client_app does not match token"));
+                    }
+                    if (!tokenEmployeeNumber.equals(requestEmployeeNumber)) {
+                        log.warn("Token validation failed: employee_number mismatch token={} request={} (client_app={})",
+                                tokenEmployeeNumber, requestEmployeeNumber, tokenClientApp);
+                        return Mono.error(new ResponseStatusException(
+                                HttpStatus.UNAUTHORIZED, "employee_number does not match token"));
                     }
 
-                    return adminPermissionClient.fetch(appName, employeeNumber)
+                    return adminPermissionClient.fetch(tokenClientApp, tokenEmployeeNumber)
                             .map(perms -> {
                                 boolean allowed = matchesConnector(perms, connector);
                                 if (allowed) {
-                                    log.info("Validate ALLOW app={} emp={} connector={} (grants={})",
-                                            appName, employeeNumber, connector, perms.size());
+                                    log.info("Validate ALLOW client_app={} emp={} connector={} (grants={})",
+                                            tokenClientApp, tokenEmployeeNumber, connector, perms.size());
                                 } else {
-                                    log.warn("Validate DENY app={} emp={} connector={} (grants={})",
-                                            appName, employeeNumber, connector, perms.size());
+                                    log.warn("Validate DENY client_app={} emp={} connector={} (grants={})",
+                                            tokenClientApp, tokenEmployeeNumber, connector, perms.size());
                                 }
-                                return new ValidationResponse(true, allowed, employeeNumber);
+                                return new ValidationResponse(true, allowed, tokenEmployeeNumber);
                             });
                 });
     }

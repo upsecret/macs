@@ -4,7 +4,9 @@ import com.macs.adminserver.connector.domain.Connector;
 import com.macs.adminserver.connector.dto.AvailableRouteResponse;
 import com.macs.adminserver.connector.dto.ConnectorRequest;
 import com.macs.adminserver.connector.dto.ConnectorResponse;
+import com.macs.adminserver.connector.dto.RouteMetadataResponse;
 import com.macs.adminserver.connector.repository.ConnectorRepository;
+import com.macs.adminserver.property.dto.GatewayDefinition;
 import com.macs.adminserver.property.dto.RouteResponse;
 import com.macs.adminserver.property.service.ConfigPropertyService;
 import org.slf4j.Logger;
@@ -16,6 +18,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -142,6 +145,84 @@ public class ConnectorService {
         }
         repository.deleteById(id);
         log.info("Connector DELETED id={}", id);
+    }
+
+    // ── Route metadata (API Docs 경로 변환용) ──────────────────
+
+    /**
+     * 커넥터에 연결된 gateway route 의 Path predicate / StripPrefix / RewritePath 규칙을
+     * 요약해서 반환. portal API Docs 가 upstream 경로 → gateway 경로로 변환할 때 사용.
+     */
+    public RouteMetadataResponse getRouteMetadata(String id) {
+        if (!repository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Connector not found: " + id);
+        }
+        RouteResponse route = configPropertyService
+                .findRoutes(GATEWAY_APP, GATEWAY_PROFILE, GATEWAY_LABEL)
+                .stream()
+                .filter(r -> id.equals(r.id()))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "No gateway route for connector: " + id));
+
+        return new RouteMetadataResponse(
+                extractPathPredicate(route.predicates()),
+                extractStripPrefix(route.filters()),
+                extractRewriteRules(route.filters()));
+    }
+
+    static String extractPathPredicate(List<GatewayDefinition> predicates) {
+        if (predicates == null) return null;
+        return predicates.stream()
+                .filter(p -> "Path".equalsIgnoreCase(p.name()))
+                .map(p -> firstArg(p.args()))
+                .filter(v -> v != null && !v.isBlank())
+                .findFirst()
+                .orElse(null);
+    }
+
+    static Integer extractStripPrefix(List<GatewayDefinition> filters) {
+        if (filters == null) return null;
+        return filters.stream()
+                .filter(f -> "StripPrefix".equalsIgnoreCase(f.name()))
+                .map(f -> firstArg(f.args()))
+                .filter(v -> v != null && !v.isBlank())
+                .map(v -> {
+                    try {
+                        return Integer.parseInt(v.trim());
+                    } catch (NumberFormatException ex) {
+                        log.warn("StripPrefix value not numeric: {}", v);
+                        return null;
+                    }
+                })
+                .filter(v -> v != null)
+                .findFirst()
+                .orElse(null);
+    }
+
+    static List<RouteMetadataResponse.RewriteRule> extractRewriteRules(List<GatewayDefinition> filters) {
+        List<RouteMetadataResponse.RewriteRule> rules = new ArrayList<>();
+        if (filters == null) return rules;
+        for (GatewayDefinition f : filters) {
+            if (!"RewritePath".equalsIgnoreCase(f.name())) continue;
+            Map<String, String> args = f.args();
+            if (args == null || args.isEmpty()) continue;
+            List<String> values = new ArrayList<>(args.values());
+            // Key 우선순위: regexp/replacement 명시 → 없으면 _genkey_0, _genkey_1 순서 사용.
+            String regexp = args.get("regexp");
+            String replacement = args.get("replacement");
+            if (regexp == null && values.size() >= 1) regexp = values.get(0);
+            if (replacement == null && values.size() >= 2) replacement = values.get(1);
+            if (regexp != null && replacement != null) {
+                rules.add(new RouteMetadataResponse.RewriteRule(regexp.trim(), replacement.trim()));
+            }
+        }
+        return rules;
+    }
+
+    private static String firstArg(Map<String, String> args) {
+        if (args == null || args.isEmpty()) return null;
+        return args.values().iterator().next();
     }
 
     // ── OpenAPI 문서 프록시 ──────────────────────────────────────

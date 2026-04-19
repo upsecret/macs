@@ -24,7 +24,7 @@ public class HeaderValidationFilter implements GlobalFilter, Ordered {
 
     /**
      * 헤더 검증을 건너뛸 gateway route id 목록.
-     * 포털 SPA 는 HTML/정적 리소스라 app_name/employee_number 헤더가 없음.
+     * 포털 SPA 는 HTML/정적 리소스라 Client-App/Employee-Number 헤더가 없음.
      * 이외 모든 라우트(auth, admin, rms, fdc, token-dic 등)는 검증 대상.
      */
     private static final Set<String> SKIPPED_ROUTE_IDS = Set.of("portal-route");
@@ -36,16 +36,16 @@ public class HeaderValidationFilter implements GlobalFilter, Ordered {
         }
 
         String path = exchange.getRequest().getURI().getPath();
-        String appName = exchange.getRequest().getHeaders().getFirst("app_name");
-        String employeeNumber = exchange.getRequest().getHeaders().getFirst("employee_number");
+        String clientApp = exchange.getRequest().getHeaders().getFirst("Client-App");
+        String employeeNumber = exchange.getRequest().getHeaders().getFirst("Employee-Number");
 
-        if (appName == null || appName.isBlank()) {
-            log.warn("Reject 400: missing app_name header path={}", path);
-            return writeError(exchange, HttpStatus.BAD_REQUEST, "Missing required header: app_name");
+        if (clientApp == null || clientApp.isBlank()) {
+            log.warn("Reject 400: missing Client-App header path={}", path);
+            return writeError(exchange, HttpStatus.BAD_REQUEST, "Missing required header: Client-App");
         }
         if (employeeNumber == null || employeeNumber.isBlank()) {
-            log.warn("Reject 400: missing employee_number header path={} app={}", path, appName);
-            return writeError(exchange, HttpStatus.BAD_REQUEST, "Missing required header: employee_number");
+            log.warn("Reject 400: missing Employee-Number header path={} client_app={}", path, clientApp);
+            return writeError(exchange, HttpStatus.BAD_REQUEST, "Missing required header: Employee-Number");
         }
 
         return chain.filter(exchange);

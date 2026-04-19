@@ -16,7 +16,7 @@ describe("components/Sidebar", () => {
   it("admin sees all 4 menus", () => {
     useAuthStore.setState({
       token: "x",
-      appName: "portal",
+      clientApp: "portal",
       employeeNumber: "2078432",
       permissions: [{ system: "common", connector: "portal", role: "admin" }],
     });
@@ -31,7 +31,7 @@ describe("components/Sidebar", () => {
   it("viewer sees only 커넥터연동", () => {
     useAuthStore.setState({
       token: "x",
-      appName: "portal",
+      clientApp: "portal",
       employeeNumber: "2065162",
       permissions: [{ system: "common", connector: "portal", role: "viewer" }],
     });
@@ -46,7 +46,7 @@ describe("components/Sidebar", () => {
   it("no permissions → only 커넥터연동 (matches getMenusForRole(null))", () => {
     useAuthStore.setState({
       token: "x",
-      appName: "portal",
+      clientApp: "portal",
       employeeNumber: "2078432",
       permissions: [],
     });

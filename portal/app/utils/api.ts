@@ -9,16 +9,16 @@ const api = axios.create({
 
 /* ── Request: 헤더 자동 주입 ──────────────────────────────── */
 api.interceptors.request.use((config) => {
-  const { token, employeeNumber, appName } = useAuthStore.getState();
+  const { token, employeeNumber, clientApp } = useAuthStore.getState();
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   if (employeeNumber) {
-    config.headers["employee_number"] = employeeNumber;
+    config.headers["Employee-Number"] = employeeNumber;
   }
-  if (appName) {
-    config.headers["app_name"] = appName;
+  if (clientApp) {
+    config.headers["Client-App"] = clientApp;
   }
 
   return config;

@@ -28,11 +28,11 @@ import java.util.Map;
  * <p>If {@code connector} is omitted, the filter falls back to the route id.
  *
  * <p>The filter delegates verification to auth-server via
- * {@code POST /api/auth/validate} with body {@code {app_name, connector}}.
- * Auth-server verifies the JWT signature, extracts {@code employee_number},
- * looks up PERMISSION for {@code (app_name, employee_number, connector)},
- * and returns {@code {valid, allowed, employee_number}}. Gateway returns 403
- * when {@code allowed=false} and 401 on signature/expiry failures.
+ * {@code POST /api/auth/validate} with body {@code {client_app, employee_number, connector}}.
+ * Auth-server verifies the JWT signature, asserts the body values match the token claims,
+ * looks up PERMISSION for {@code (client_app, employee_number, connector)}, and returns
+ * {@code {valid, allowed, employee_number}}. Gateway returns 403 when {@code allowed=false}
+ * and 401 on signature/expiry failures.
  */
 @Component
 public class AuthValidationGatewayFilterFactory
@@ -64,12 +64,18 @@ public class AuthValidationGatewayFilterFactory
                         "Missing or invalid Authorization header");
             }
 
-            String appName = exchange.getRequest().getHeaders().getFirst("app_name");
-            if (appName == null || appName.isBlank()) {
+            String clientApp = exchange.getRequest().getHeaders().getFirst("Client-App");
+            if (clientApp == null || clientApp.isBlank()) {
                 // HeaderValidationFilter normally catches this first; this is a safety net.
                 return HeaderValidationFilter.writeError(
                         exchange, HttpStatus.BAD_REQUEST,
-                        "Missing required header: app_name");
+                        "Missing required header: Client-App");
+            }
+            String employeeNumber = exchange.getRequest().getHeaders().getFirst("Employee-Number");
+            if (employeeNumber == null || employeeNumber.isBlank()) {
+                return HeaderValidationFilter.writeError(
+                        exchange, HttpStatus.BAD_REQUEST,
+                        "Missing required header: Employee-Number");
             }
 
             Route route = exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR);
@@ -79,7 +85,8 @@ public class AuthValidationGatewayFilterFactory
                     : routeId;
 
             Map<String, String> body = new HashMap<>();
-            body.put("app_name", appName);
+            body.put("client_app", clientApp);
+            body.put("employee_number", employeeNumber);
             body.put("connector", targetConnector);
 
             return authServiceWebClient.post()
@@ -93,15 +100,15 @@ public class AuthValidationGatewayFilterFactory
                         if (Boolean.TRUE.equals(allowed)) {
                             return chain.filter(exchange);
                         }
-                        log.warn("Auth denied: app_name={} connector={} route={}",
-                                appName, targetConnector, routeId);
+                        log.warn("Auth denied: client_app={} employee_number={} connector={} route={}",
+                                clientApp, employeeNumber, targetConnector, routeId);
                         return HeaderValidationFilter.writeError(
                                 exchange, HttpStatus.FORBIDDEN,
                                 "Access denied to " + targetConnector);
                     })
                     .onErrorResume(ex -> {
-                        log.warn("Auth validation error for connector={} route={}: {}",
-                                targetConnector, routeId, ex.getMessage());
+                        log.warn("Auth validation error client_app={} employee_number={} connector={} route={}: {}",
+                                clientApp, employeeNumber, targetConnector, routeId, ex.getMessage());
                         return HeaderValidationFilter.writeError(
                                 exchange, HttpStatus.UNAUTHORIZED,
                                 "Token validation failed");

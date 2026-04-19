@@ -4,7 +4,7 @@ import { useAuthStore } from "../stores/authStore";
 
 export default function TopBar() {
   const navigate = useNavigate();
-  const { appName, employeeNumber, logout } = useAuthStore();
+  const { clientApp, employeeNumber, logout } = useAuthStore();
 
   const handleLogout = () => {
     logout();
@@ -22,7 +22,7 @@ export default function TopBar() {
           </div>
           <div className="leading-tight">
             <p className="text-sm text-gray-800">{employeeNumber}</p>
-            <p className="text-[11px] text-gray-500">{appName}</p>
+            <p className="text-[11px] text-gray-500">{clientApp}</p>
           </div>
         </div>
 

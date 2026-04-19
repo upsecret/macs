@@ -102,9 +102,9 @@ public class RequestResponseLoggingFilter implements GlobalFilter, Ordered {
         }
 
         // MDC for downstream logs during this exchange
-        String appName = firstHeader(request, "app_name");
-        String employeeNumber = firstHeader(request, "employee_number");
-        MDC.put("app_name", nullToDash(appName));
+        String clientApp = firstHeader(request, "Client-App");
+        String employeeNumber = firstHeader(request, "Employee-Number");
+        MDC.put("client_app", nullToDash(clientApp));
         MDC.put("employee_number", nullToDash(employeeNumber));
 
         exchange.getAttributes().put(START_NS_ATTR, System.nanoTime());
@@ -174,14 +174,14 @@ public class RequestResponseLoggingFilter implements GlobalFilter, Ordered {
         long contentLength = h.getContentLength();
         String query = request.getURI().getRawQuery();
 
-        log.info(">>> {} {}{}  route={}  peer={}  app={}  emp={}  req-bytes={}  ct={}",
+        log.info(">>> {} {}{}  route={}  peer={}  client_app={}  emp={}  req-bytes={}  ct={}",
                 request.getMethod(),
                 request.getURI().getPath(),
                 query != null ? "?" + query : "",
                 routeId,
                 peer,
-                nullToDash(firstHeader(request, "app_name")),
-                nullToDash(firstHeader(request, "employee_number")),
+                nullToDash(firstHeader(request, "Client-App")),
+                nullToDash(firstHeader(request, "Employee-Number")),
                 contentLength >= 0 ? contentLength : "-",
                 contentType != null ? contentType : "-");
     }

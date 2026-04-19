@@ -39,7 +39,7 @@ export default function AuthManage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [granting, setGranting] = useState(false);
 
-  // ── 토큰 발급 디버그 (employee_number 만) ─────────────────────
+  // ── 토큰 발급 디버그 (client_app + employee_number) ───────────
   const [tokenEmp, setTokenEmp] = useState("");
   const [tokenResult, setTokenResult] = useState<AuthResponse | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
@@ -156,14 +156,13 @@ export default function AuthManage() {
     try {
       const { data } = await rawClient.post<AuthResponse>(
         "/api/auth/token",
-        { employee_number: tokenEmp.trim() },
+        { client_app: "portal", employee_number: tokenEmp.trim() },
         {
           headers: {
             "Content-Type": "application/json",
-            // app_name 헤더는 gateway HeaderValidationFilter 가 강제하므로 임의값 portal 로 채움.
-            // 토큰 자체엔 app_name 이 들어가지 않는다.
-            app_name: "portal",
-            employee_number: tokenEmp.trim(),
+            // Gateway HeaderValidationFilter 가 강제하는 헤더. 디버그용이라 client_app 은 portal 로 고정.
+            "Client-App": "portal",
+            "Employee-Number": tokenEmp.trim(),
           },
         },
       );
@@ -390,7 +389,7 @@ export default function AuthManage() {
       <div className="bg-white rounded-lg shadow p-6 mt-6">
         <h2 className="text-lg font-semibold text-gray-800 mb-1">토큰 발급 (디버그)</h2>
         <p className="text-xs text-gray-500 mb-4">
-          임의의 employee_number 에 대해 JWT 를 받아본다. 토큰엔 sub(=employee_number) 만 들어 있고 권한은 매 요청 auth-server 가 PERMISSION 테이블에서 확인한다. 현재 로그인 세션에는 영향을 주지 않는다.
+          임의의 employee_number 에 대해 JWT 를 받아본다. 토큰엔 client_app 과 employee_number 클레임이 들어 있고, 권한은 매 요청 auth-server 가 PERMISSION 테이블에서 확인한다. 현재 로그인 세션에는 영향을 주지 않는다.
         </p>
 
         <form onSubmit={handleIssueToken} className="flex items-end gap-2 mb-4">

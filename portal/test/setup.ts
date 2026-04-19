@@ -40,7 +40,7 @@ afterEach(() => {
   window.localStorage.clear();
   useAuthStore.setState({
     token: null,
-    appName: null,
+    clientApp: null,
     employeeNumber: null,
     permissions: [],
   });

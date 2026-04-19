@@ -6,6 +6,7 @@ export interface PermissionEntry {
 
 export interface AuthResponse {
   token: string;
+  client_app: string;
   employee_number: string;
 }
 

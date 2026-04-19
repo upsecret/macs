@@ -9,14 +9,14 @@ import reactor.core.publisher.Mono;
 public class KeyResolverConfig {
 
     /**
-     * 기본 KeyResolver: app_name + employee_number 헤더 기반.
+     * 기본 KeyResolver: Client-App + Employee-Number 헤더 기반.
      * RequestRateLimiter 에서 #{@headerKeyResolver} 로 참조.
      */
     @Bean
     public KeyResolver headerKeyResolver() {
         return exchange -> {
-            String app = exchange.getRequest().getHeaders().getFirst("app_name");
-            String emp = exchange.getRequest().getHeaders().getFirst("employee_number");
+            String app = exchange.getRequest().getHeaders().getFirst("Client-App");
+            String emp = exchange.getRequest().getHeaders().getFirst("Employee-Number");
             if (app != null && emp != null) {
                 return Mono.just(app + ":" + emp);
             }

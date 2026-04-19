@@ -1,7 +1,7 @@
 import { http, HttpResponse } from "msw";
 
 // 테스트 기본 응답. 특정 테스트에서 `server.use(...)` 로 덮어쓸 수 있다.
-// 새 권한 모델: JWT 엔 employee_number 만, 권한은 별도 fetch.
+// JWT 에 client_app + employee_number 클레임 포함, 권한은 별도 fetch.
 
 const SAMPLE_TOKEN =
   "eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiIyMDc4NDMyIiwiZW1wbG95ZWVfbnVtYmVyIjoiMjA3ODQzMiIsImlhdCI6MSwiZXhwIjo5OTk5OTk5OTk5fQ.sig";
@@ -9,9 +9,10 @@ const SAMPLE_TOKEN =
 export const handlers = [
   // ── Auth ────────────────────────────────────────────────
   http.post("/api/auth/token", async ({ request }) => {
-    const body = (await request.json()) as { employee_number?: string };
+    const body = (await request.json()) as { client_app?: string; employee_number?: string };
     return HttpResponse.json({
       token: SAMPLE_TOKEN,
+      client_app: body.client_app ?? "portal",
       employee_number: body.employee_number ?? "2078432",
     });
   }),

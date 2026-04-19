@@ -42,7 +42,7 @@ describe("components/ProtectedRoute", () => {
   it("renders children when authenticated admin hits admin route", () => {
     useAuthStore.setState({
       token: "x",
-      appName: "portal",
+      clientApp: "portal",
       employeeNumber: "2078432",
       permissions: [{ system: "common", connector: "portal", role: "admin" }],
     });
@@ -53,7 +53,7 @@ describe("components/ProtectedRoute", () => {
   it("redirects non-admin away from admin-only route to /connector", () => {
     useAuthStore.setState({
       token: "x",
-      appName: "portal",
+      clientApp: "portal",
       employeeNumber: "2065162",
       permissions: [{ system: "common", connector: "portal", role: "viewer" }],
     });
@@ -65,7 +65,7 @@ describe("components/ProtectedRoute", () => {
   it("admin can access route-config too", () => {
     useAuthStore.setState({
       token: "x",
-      appName: "portal",
+      clientApp: "portal",
       employeeNumber: "2078432",
       permissions: [{ system: "common", connector: "portal", role: "admin" }],
     });

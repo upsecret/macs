@@ -20,3 +20,9 @@ Thumbs.db
 # 사내 배포 시 별도 미러에서 libs/ 로 직접 복사한다. README 9. TODO 참조.
 libs/*.zip
 libs/*.jar
+
+# Secrets / 인증서 (배포 파이프라인에서 주입)
+/.env
+/.env.local
+/hynix.crt
+*.pem

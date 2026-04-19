@@ -7,6 +7,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record TokenResponse(
         String token,
 
+        @JsonProperty("client_app")
+        String clientApp,
+
         @JsonProperty("employee_number")
         String employeeNumber
 ) {

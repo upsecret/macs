@@ -4,7 +4,7 @@ import type { PermissionEntry } from "../types";
 
 interface AuthPayload {
   token: string;
-  appName: string;
+  clientApp: string;
   employeeNumber: string;
   permissions: PermissionEntry[];
 }
@@ -12,7 +12,7 @@ interface AuthPayload {
 interface AuthState {
   /* ── state ─────────────────────────────────────────────── */
   token: string | null;
-  appName: string | null;
+  clientApp: string | null;
   employeeNumber: string | null;
   permissions: PermissionEntry[];
 
@@ -29,10 +29,10 @@ interface AuthState {
 
 const INITIAL: Pick<
   AuthState,
-  "token" | "appName" | "employeeNumber" | "permissions"
+  "token" | "clientApp" | "employeeNumber" | "permissions"
 > = {
   token: null,
-  appName: null,
+  clientApp: null,
   employeeNumber: null,
   permissions: [],
 };
@@ -45,7 +45,7 @@ export const useAuthStore = create<AuthState>()(
       setAuth: (payload) =>
         set({
           token: payload.token,
-          appName: payload.appName,
+          clientApp: payload.clientApp,
           employeeNumber: payload.employeeNumber,
           permissions: payload.permissions,
         }),
@@ -66,6 +66,9 @@ export const useAuthStore = create<AuthState>()(
 
       isAdmin: () => get().permissions.some((p) => p.role === "admin"),
     }),
-    { name: "macs-auth" },
+    {
+      name: "macs-auth",
+      version: 2,
+    },
   ),
 );

@@ -7,7 +7,7 @@ const VIEWER_PERM = { system: "common", connector: "portal", role: "viewer" };
 function seed(perms = [ADMIN_PERM]) {
   useAuthStore.getState().setAuth({
     token: "test-token",
-    appName: "portal",
+    clientApp: "portal",
     employeeNumber: "2078432",
     permissions: perms,
   });

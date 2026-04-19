@@ -18,7 +18,7 @@ describe("hooks/useAuth", () => {
     });
     const state = useAuthStore.getState();
     expect(state.employeeNumber).toBe("2078432");
-    expect(state.appName).toBe("portal");
+    expect(state.clientApp).toBe("portal");
     expect(state.permissions).toEqual([
       { system: "common", connector: "portal", role: "admin" },
     ]);
@@ -75,7 +75,7 @@ describe("hooks/useAuth", () => {
     // store seed 는 renderHook 호출 전에 — hook subscriber 가 생기기 전이라 re-render 경고 없음
     useAuthStore.setState({
       token: "x",
-      appName: "portal",
+      clientApp: "portal",
       employeeNumber: "2078432",
       permissions: [{ system: "common", connector: "portal", role: "admin" }],
     });
