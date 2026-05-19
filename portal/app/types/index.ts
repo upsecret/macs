@@ -65,3 +65,42 @@ export interface AvailableRoute {
   id: string;
   uri: string;
 }
+
+/* ── MCP (Model Context Protocol) ───────────────────────── */
+
+export type McpTransport = "streamable-http";
+export type McpAuthType = "none" | "bearer";
+
+export interface McpServer {
+  id: string;
+  name: string;
+  description: string | null;
+  endpointUrl: string;
+  transport: McpTransport;
+  authType: McpAuthType;
+  hasAuthToken: boolean;
+  system: string;
+  createdAt: string;
+}
+
+export interface McpTool {
+  name: string;
+  description: string;
+  /** JSON Schema for the tool's arguments (object). */
+  inputSchema: unknown;
+}
+
+export interface McpContentBlock {
+  type: string;        // "text" | "image" | "resource" | ...
+  text?: string;
+  data?: string;       // base64 for image
+  mimeType?: string;
+  resource?: unknown;
+  [k: string]: unknown;
+}
+
+export interface McpToolCallResponse {
+  content: McpContentBlock[];
+  error: boolean;
+  raw: unknown;
+}

@@ -27,4 +27,21 @@ public class RestClientConfig {
         }
         return builder.build();
     }
+
+    /**
+     * MCP(Model Context Protocol) JSON-RPC 호출용 RestClient.
+     * tools/call 은 임의로 길 수 있어 read timeout 을 별도로 넉넉히 (30s) 부여.
+     */
+    @Bean
+    public RestClient mcpClient(RestClientCustomizer... customizers) {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout((int) Duration.ofSeconds(3).toMillis());
+        factory.setReadTimeout((int) Duration.ofSeconds(30).toMillis());
+
+        RestClient.Builder builder = RestClient.builder().requestFactory(factory);
+        for (RestClientCustomizer c : customizers) {
+            c.customize(builder);
+        }
+        return builder.build();
+    }
 }

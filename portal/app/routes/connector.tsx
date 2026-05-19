@@ -3,9 +3,10 @@ import { ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react";
 import api from "../utils/api";
 import ApiDocsViewer from "../components/ApiDocsViewer";
 import ConnectorFormModal from "../components/ConnectorFormModal";
+import McpDetailPanel from "../components/McpDetailPanel";
 import { useAuthStore } from "../stores/authStore";
 import { useResource } from "../hooks/useResource";
-import type { Connector, ConnectorType } from "../types";
+import type { Connector, ConnectorType, McpServer } from "../types";
 
 const TYPE_BADGE: Record<ConnectorType, string> = {
   agent: "bg-violet-100 text-violet-700",
@@ -13,17 +14,54 @@ const TYPE_BADGE: Record<ConnectorType, string> = {
   mcp: "bg-amber-100 text-amber-700",
 };
 
-/**
- * system 별로 커넥터 그룹화 + 정렬.
- * common 은 항상 맨 앞, 나머지는 알파벳 순.
- */
-function groupBySystem(connectors: Connector[]): Array<[string, Connector[]]> {
-  const groups = new Map<string, Connector[]>();
-  for (const c of connectors) {
-    const key = c.system || "common";
+/* ── unified card view-model ────────────────────────────── */
+
+interface RegistryItem {
+  kind: "connector" | "mcp";
+  id: string;
+  title: string;          // connector.title or mcp.name
+  description: string | null;
+  type: ConnectorType;
+  system: string;
+  /** REST 측 — gateway route 가 살아있어야 활성. MCP 는 항상 true. */
+  active: boolean;
+  /** for clicking through to the right detail view */
+  raw: Connector | McpServer;
+}
+
+function fromConnector(c: Connector): RegistryItem {
+  return {
+    kind: "connector",
+    id: c.id,
+    title: c.title,
+    description: c.description,
+    type: c.type,
+    system: c.system,
+    active: c.active,
+    raw: c,
+  };
+}
+
+function fromMcp(s: McpServer): RegistryItem {
+  return {
+    kind: "mcp",
+    id: s.id,
+    title: s.name,
+    description: s.description,
+    type: "mcp",
+    system: s.system,
+    active: true,
+    raw: s,
+  };
+}
+
+function groupBySystem(items: RegistryItem[]): Array<[string, RegistryItem[]]> {
+  const groups = new Map<string, RegistryItem[]>();
+  for (const it of items) {
+    const key = it.system || "common";
     const list = groups.get(key);
-    if (list) list.push(c);
-    else groups.set(key, [c]);
+    if (list) list.push(it);
+    else groups.set(key, [it]);
   }
   return [...groups.entries()].sort(([a], [b]) => {
     if (a === "common") return -1;
@@ -35,46 +73,69 @@ function groupBySystem(connectors: Connector[]): Array<[string, Connector[]]> {
 export default function ConnectorPage() {
   const isAdmin = useAuthStore((s) => s.isAdmin());
   const [filter, setFilter] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null); // "kind:id"
   const [modal, setModal] = useState<"create" | "edit" | null>(null);
 
-  const { data: connectorsData, loading, refetch: fetchConnectors } = useResource<Connector[]>(
+  const { data: connectorsData, refetch: refetchConnectors } = useResource<Connector[]>(
     () => api.get<Connector[]>("/api/admin/connectors").then((r) => r.data),
     [],
   );
-  const connectors = connectorsData ?? [];
+  const { data: mcpData, refetch: refetchMcp } = useResource<McpServer[]>(
+    () => api.get<McpServer[]>("/api/admin/mcp/servers").then((r) => r.data),
+    [],
+  );
 
-  const selected = connectors.find((c) => c.id === selectedId) ?? null;
+  const refetchAll = async () => {
+    await Promise.all([refetchConnectors(), refetchMcp()]);
+  };
 
-  // ⚠️ hooks(useMemo) 는 반드시 early return 전에 호출 (React Rules of Hooks).
-  // 상세 뷰일 때도 동일 개수의 hooks 가 호출돼야 error #300 을 피함.
+  const items: RegistryItem[] = useMemo(() => {
+    const a = (connectorsData ?? []).map(fromConnector);
+    const b = (mcpData ?? []).map(fromMcp);
+    return [...a, ...b];
+  }, [connectorsData, mcpData]);
+
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (!q) return connectors;
-    return connectors.filter(
+    if (!q) return items;
+    return items.filter(
       (c) =>
         c.id.toLowerCase().includes(q) ||
         c.title.toLowerCase().includes(q) ||
         (c.description ?? "").toLowerCase().includes(q) ||
-        c.system.toLowerCase().includes(q),
+        c.system.toLowerCase().includes(q) ||
+        c.type.toLowerCase().includes(q),
     );
-  }, [connectors, filter]);
+  }, [items, filter]);
 
   const grouped = useMemo(() => groupBySystem(filtered), [filtered]);
+  const loading = connectorsData == null && mcpData == null;
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(`커넥터 "${id}"를 삭제하시겠습니까? (gateway 라우트는 유지됩니다)`)) return;
+  const selected = useMemo(
+    () => items.find((it) => `${it.kind}:${it.id}` === selectedKey) ?? null,
+    [items, selectedKey],
+  );
+
+  const handleDelete = async (it: RegistryItem) => {
+    const target =
+      it.kind === "mcp"
+        ? `MCP 서버 "${it.id}"`
+        : `커넥터 "${it.id}" (gateway 라우트는 유지됨)`;
+    if (!confirm(`${target} 를 삭제하시겠습니까?`)) return;
     try {
-      await api.delete(`/api/admin/connectors/${id}`);
-      setSelectedId(null);
-      await fetchConnectors();
+      const url =
+        it.kind === "mcp"
+          ? `/api/admin/mcp/servers/${it.id}`
+          : `/api/admin/connectors/${it.id}`;
+      await api.delete(url);
+      setSelectedKey(null);
+      await refetchAll();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "삭제에 실패했습니다.";
-      alert(message);
+      alert(err instanceof Error ? err.message : "삭제 실패");
     }
   };
 
-  /* ── 상세 뷰 ──────────────────────────────────────────────── */
+  /* ── 상세 뷰 ──────────────────────────────────────────── */
   if (selected) {
     const activeBadge = selected.active
       ? "bg-green-50 text-green-700"
@@ -83,8 +144,8 @@ export default function ConnectorPage() {
       <div>
         <div className="flex items-center gap-4 mb-6">
           <button
-            onClick={() => setSelectedId(null)}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+            onClick={() => setSelectedKey(null)}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50"
           >
             <ArrowLeft size={16} strokeWidth={1.75} />
             목록으로
@@ -98,7 +159,9 @@ export default function ConnectorPage() {
               <div>
                 <span className="text-[10px] uppercase tracking-wider text-gray-400">Type</span>
                 <p>
-                  <span className={`inline-block text-xs px-2 py-0.5 rounded font-mono ${TYPE_BADGE[selected.type]}`}>
+                  <span
+                    className={`inline-block text-xs px-2 py-0.5 rounded font-mono ${TYPE_BADGE[selected.type]}`}
+                  >
                     {selected.type}
                   </span>
                 </p>
@@ -107,17 +170,29 @@ export default function ConnectorPage() {
                 <span className="text-[10px] uppercase tracking-wider text-gray-400">System</span>
                 <p className="text-sm font-mono text-gray-800">{selected.system}</p>
               </div>
-              <div>
-                <span className="text-[10px] uppercase tracking-wider text-gray-400">Status</span>
-                <p>
-                  <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full ${activeBadge}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${selected.active ? "bg-green-500" : "bg-gray-400"}`} />
-                    {selected.active ? "활성" : "비활성 (라우트 없음)"}
+              {selected.kind === "connector" && (
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider text-gray-400">
+                    Status
                   </span>
-                </p>
-              </div>
+                  <p>
+                    <span
+                      className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full ${activeBadge}`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${
+                          selected.active ? "bg-green-500" : "bg-gray-400"
+                        }`}
+                      />
+                      {selected.active ? "활성" : "비활성 (라우트 없음)"}
+                    </span>
+                  </p>
+                </div>
+              )}
               <div className="md:col-span-2">
-                <span className="text-[10px] uppercase tracking-wider text-gray-400">Description</span>
+                <span className="text-[10px] uppercase tracking-wider text-gray-400">
+                  Description
+                </span>
                 <p className="text-sm text-gray-600">
                   {selected.description || <span className="text-gray-400">-</span>}
                 </p>
@@ -129,14 +204,14 @@ export default function ConnectorPage() {
             <div className="flex items-center justify-end gap-2 pt-4 border-t border-gray-100">
               <button
                 onClick={() => setModal("edit")}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 <Pencil size={14} strokeWidth={1.75} />
                 편집
               </button>
               <button
-                onClick={() => handleDelete(selected.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-error border border-error/30 rounded-lg hover:bg-error/5 transition-colors"
+                onClick={() => handleDelete(selected)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-error border border-error/30 rounded-lg hover:bg-error/5"
               >
                 <Trash2 size={14} strokeWidth={1.75} />
                 삭제
@@ -145,43 +220,49 @@ export default function ConnectorPage() {
           )}
         </div>
 
-        {/* API 문서 — admin-server 프록시 를 통해 OpenAPI JSON 을 받아 구조화 렌더 */}
-        <div>
-          <h3 className="text-sm font-semibold text-gray-800 mb-3">API 문서</h3>
-          <ApiDocsViewer connectorId={selected.id} />
-        </div>
+        {/* type 별 분기: mcp 면 도구 패널, 그 외엔 API 문서 뷰어 */}
+        {selected.kind === "mcp" ? (
+          <McpDetailPanel server={selected.raw as McpServer} />
+        ) : (
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800 mb-3">API 문서</h3>
+            <ApiDocsViewer connectorId={selected.id} />
+          </div>
+        )}
 
         {modal === "edit" && (
           <ConnectorFormModal
             mode="edit"
-            initial={selected}
+            initial={selected.raw}
             onClose={() => setModal(null)}
-            onSaved={fetchConnectors}
+            onSaved={refetchAll}
           />
         )}
       </div>
     );
   }
 
-  /* ── 목록 뷰 ──────────────────────────────────────────────── */
+  /* ── 목록 뷰 ──────────────────────────────────────────── */
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">커넥터 연동</h1>
-          <p className="text-sm text-gray-500 mt-1">등록된 커넥터 현황</p>
+          <p className="text-sm text-gray-500 mt-1">
+            REST(agent/api) · MCP 커넥터 통합 등록
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={fetchConnectors}
-            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+            onClick={refetchAll}
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50"
           >
             새로고침
           </button>
           {isAdmin && (
             <button
               onClick={() => setModal("create")}
-              className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary/90 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary/90"
             >
               <Plus size={16} strokeWidth={2} />
               등록하기
@@ -195,52 +276,74 @@ export default function ConnectorPage() {
           type="text"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="title, description, system 으로 검색..."
+          placeholder="title, description, system, type 으로 검색..."
           className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary"
         />
       </div>
 
       {loading ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center text-gray-400">로딩 중...</div>
+        <div className="bg-white rounded-lg shadow p-12 text-center text-gray-400">
+          로딩 중...
+        </div>
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-12 text-center text-gray-400">
-          {filter ? "검색 결과가 없습니다." : "등록된 커넥터가 없습니다. 우측 상단 '등록하기'로 추가하세요."}
+          {filter
+            ? "검색 결과가 없습니다."
+            : "등록된 커넥터가 없습니다. 우측 상단 '등록하기' 로 추가하세요."}
         </div>
       ) : (
         <div className="space-y-8">
           {grouped.map(([sys, cards]) => (
             <section key={sys}>
               <div className="flex items-baseline gap-2 mb-3">
-                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">{sys}</h2>
+                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">
+                  {sys}
+                </h2>
                 <span className="text-xs text-gray-400">({cards.length})</span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {cards.map((c) => {
+                  const cardKey = `${c.kind}:${c.id}`;
+                  const showActive = c.kind === "connector";
                   const activeBadge = c.active
                     ? "bg-green-50 text-green-700"
                     : "bg-gray-100 text-gray-500";
                   return (
                     <div
-                      key={c.id}
-                      onClick={() => setSelectedId(c.id)}
+                      key={cardKey}
+                      onClick={() => setSelectedKey(cardKey)}
                       className="bg-white rounded-lg shadow overflow-hidden cursor-pointer hover:shadow-md hover:ring-1 hover:ring-gray-200 transition-all"
                     >
                       <div className="px-4 py-3 border-b border-gray-200 bg-header flex items-center justify-between gap-2">
-                        <span className="text-sm font-semibold text-gray-800 truncate">{c.title}</span>
+                        <span className="text-sm font-semibold text-gray-800 truncate">
+                          {c.title}
+                        </span>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${TYPE_BADGE[c.type]}`}>
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${TYPE_BADGE[c.type]}`}
+                          >
                             {c.type}
                           </span>
-                          <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full ${activeBadge}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${c.active ? "bg-green-500" : "bg-gray-400"}`} />
-                            {c.active ? "활성" : "비활성"}
-                          </span>
+                          {showActive && (
+                            <span
+                              className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full ${activeBadge}`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  c.active ? "bg-green-500" : "bg-gray-400"
+                                }`}
+                              />
+                              {c.active ? "활성" : "비활성"}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="px-4 py-3 space-y-2">
                         {c.description && (
                           <div>
-                            <span className="text-[10px] uppercase tracking-wider text-gray-400">Description</span>
+                            <span className="text-[10px] uppercase tracking-wider text-gray-400">
+                              Description
+                            </span>
                             <p className="text-sm text-gray-600 line-clamp-2">{c.description}</p>
                           </div>
                         )}
@@ -258,7 +361,7 @@ export default function ConnectorPage() {
         <ConnectorFormModal
           mode="create"
           onClose={() => setModal(null)}
-          onSaved={fetchConnectors}
+          onSaved={refetchAll}
         />
       )}
     </div>

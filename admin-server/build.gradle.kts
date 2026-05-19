@@ -11,4 +11,10 @@ dependencies {
     implementation(libs.spring.boot.starter.actuator)
     implementation(libs.springdoc.openapi.webmvc.ui)
     runtimeOnly(libs.ojdbc11)
+
+    testImplementation(libs.spring.boot.starter.test)
+}
+
+tasks.named<Test>("test") {
+    useJUnitPlatform()
 }

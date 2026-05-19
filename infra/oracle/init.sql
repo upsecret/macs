@@ -112,6 +112,28 @@ CREATE TABLE CONNECTOR (
 CREATE INDEX IDX_CONNECTOR_SYSTEM ON CONNECTOR (SYSTEM);
 
 -- ============================================================
+-- Admin Server – MCP_SERVER (registered MCP server endpoints)
+-- ============================================================
+-- MCP(Model Context Protocol) 외부 서버 등록 테이블.
+-- gateway route 와 무관 — JSON-RPC over HTTP 로 직접 호출하는 외부 endpoint.
+CREATE TABLE MCP_SERVER (
+    ID            VARCHAR2(128)  NOT NULL,
+    NAME          VARCHAR2(256)  NOT NULL,
+    DESCRIPTION   VARCHAR2(1024),
+    ENDPOINT_URL  VARCHAR2(1024) NOT NULL,
+    TRANSPORT     VARCHAR2(32)   DEFAULT 'streamable-http' NOT NULL,
+    AUTH_TYPE     VARCHAR2(32)   DEFAULT 'none' NOT NULL,
+    AUTH_TOKEN    VARCHAR2(2048),
+    SYSTEM        VARCHAR2(64)   DEFAULT 'common' NOT NULL,
+    CREATED_AT    TIMESTAMP      DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT PK_MCP_SERVER PRIMARY KEY (ID),
+    CONSTRAINT CK_MCP_TRANSPORT CHECK (TRANSPORT IN ('streamable-http')),
+    CONSTRAINT CK_MCP_AUTH      CHECK (AUTH_TYPE IN ('none','bearer'))
+);
+
+CREATE INDEX IDX_MCP_SERVER_SYSTEM ON MCP_SERVER (SYSTEM);
+
+-- ============================================================
 -- Admin Server – PERMISSION (user-to-route access grants)
 -- ============================================================
 CREATE TABLE PERMISSION (
@@ -321,5 +343,19 @@ MERGE INTO PERMISSION t USING (SELECT 'portal' APP_NAME,'2065162' EMPLOYEE_NUMBE
       AND t.SYSTEM=s.SYSTEM AND t.CONNECTOR=s.CONNECTOR)
   WHEN NOT MATCHED THEN INSERT (APP_NAME,EMPLOYEE_NUMBER,SYSTEM,CONNECTOR,ROLE)
     VALUES (s.APP_NAME,s.EMPLOYEE_NUMBER,s.SYSTEM,s.CONNECTOR,s.ROLE);
+
+-- ============================================================
+-- Sample Data – MCP_SERVER (dummy MCP test server)
+-- ============================================================
+-- docker-compose 의 dummy-mcp-server 컨테이너를 가리키는 시드.
+MERGE INTO MCP_SERVER t USING (SELECT
+    'dummy-mcp' ID, 'Dummy MCP Server' NAME,
+    'Built-in test MCP server (echo, add tools)' DESCRIPTION,
+    'http://dummy-mcp-server:8765/mcp' ENDPOINT_URL,
+    'streamable-http' TRANSPORT, 'none' AUTH_TYPE, NULL AUTH_TOKEN,
+    'common' SYSTEM FROM dual) s
+  ON (t.ID = s.ID)
+  WHEN NOT MATCHED THEN INSERT (ID,NAME,DESCRIPTION,ENDPOINT_URL,TRANSPORT,AUTH_TYPE,AUTH_TOKEN,SYSTEM)
+    VALUES (s.ID,s.NAME,s.DESCRIPTION,s.ENDPOINT_URL,s.TRANSPORT,s.AUTH_TYPE,s.AUTH_TOKEN,s.SYSTEM);
 
 COMMIT;
