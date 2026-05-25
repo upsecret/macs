@@ -36,4 +36,20 @@ public class WebClientConfig {
                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .build();
     }
+
+    /**
+     * MCP 서버 JSON-RPC 호출 전용. tools/call 이 LLM 응답을 포함할 수 있어
+     * connect 5s / read 30s 로 넉넉히.
+     */
+    @Bean
+    public WebClient mcpWebClient() {
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) Duration.ofSeconds(5).toMillis())
+                .responseTimeout(Duration.ofSeconds(30))
+                .doOnConnected(conn -> conn.addHandlerLast(
+                        new ReadTimeoutHandler(30, TimeUnit.SECONDS)));
+        return WebClient.builder()
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .build();
+    }
 }

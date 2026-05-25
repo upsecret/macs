@@ -237,7 +237,7 @@ services:
 
   # ── Dummy MCP Server (test fixture) ───────────────────────
   # Phase 1 MCP 통합 검증용 단일 파일 Node 서버.
-  # echo, add 도구 노출. admin-server 가 http://dummy-mcp-server:8765/mcp 로 호출.
+  # echo, add 도구 노출. gateway-service 가 http://dummy-mcp-server:8765/mcp 로 호출.
   dummy-mcp-server:
     build:
       context: ./infra/dummy-mcp-server
