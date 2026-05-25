@@ -1,41 +1,37 @@
-import { screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
-import { MemoryRouter, Route, Routes } from "react-router";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import ProtectedRoute from "~/components/ProtectedRoute";
 import { useAuthStore } from "~/stores/authStore";
 
-function renderAt(pathname: string) {
-  return render(
-    <MemoryRouter initialEntries={[pathname]}>
-      <Routes>
-        <Route path="/login" element={<div>LOGIN_PAGE</div>} />
-        <Route path="/connector" element={<div>CONNECTOR_PAGE</div>} />
-        <Route
-          path="/auth-manage"
-          element={
-            <ProtectedRoute>
-              <div>AUTH_MANAGE_CONTENT</div>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/route-config"
-          element={
-            <ProtectedRoute>
-              <div>ROUTE_CONFIG_CONTENT</div>
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
-    </MemoryRouter>,
-  );
-}
+// usePathname 은 each test 에서 동적으로 변경하기 위해 변수 기반.
+let currentPath = "/auth-manage";
+const replaceMock = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => currentPath,
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: replaceMock,
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+    prefetch: vi.fn(),
+  }),
+}));
+
+beforeEach(() => {
+  replaceMock.mockReset();
+});
 
 describe("components/ProtectedRoute", () => {
   it("redirects to /login when not authenticated", () => {
-    renderAt("/auth-manage");
-    expect(screen.getByText("LOGIN_PAGE")).toBeInTheDocument();
+    currentPath = "/auth-manage";
+    render(
+      <ProtectedRoute>
+        <div>AUTH_MANAGE_CONTENT</div>
+      </ProtectedRoute>,
+    );
+    expect(replaceMock).toHaveBeenCalledWith("/login");
     expect(screen.queryByText("AUTH_MANAGE_CONTENT")).not.toBeInTheDocument();
   });
 
@@ -46,8 +42,14 @@ describe("components/ProtectedRoute", () => {
       employeeNumber: "2078432",
       permissions: [{ system: "common", connector: "portal", role: "admin" }],
     });
-    renderAt("/auth-manage");
+    currentPath = "/auth-manage";
+    render(
+      <ProtectedRoute>
+        <div>AUTH_MANAGE_CONTENT</div>
+      </ProtectedRoute>,
+    );
     expect(screen.getByText("AUTH_MANAGE_CONTENT")).toBeInTheDocument();
+    expect(replaceMock).not.toHaveBeenCalled();
   });
 
   it("redirects non-admin away from admin-only route to /connector", () => {
@@ -57,8 +59,13 @@ describe("components/ProtectedRoute", () => {
       employeeNumber: "2065162",
       permissions: [{ system: "common", connector: "portal", role: "viewer" }],
     });
-    renderAt("/auth-manage");
-    expect(screen.getByText("CONNECTOR_PAGE")).toBeInTheDocument();
+    currentPath = "/auth-manage";
+    render(
+      <ProtectedRoute>
+        <div>AUTH_MANAGE_CONTENT</div>
+      </ProtectedRoute>,
+    );
+    expect(replaceMock).toHaveBeenCalledWith("/connector");
     expect(screen.queryByText("AUTH_MANAGE_CONTENT")).not.toBeInTheDocument();
   });
 
@@ -69,7 +76,13 @@ describe("components/ProtectedRoute", () => {
       employeeNumber: "2078432",
       permissions: [{ system: "common", connector: "portal", role: "admin" }],
     });
-    renderAt("/route-config");
+    currentPath = "/route-config";
+    render(
+      <ProtectedRoute>
+        <div>ROUTE_CONFIG_CONTENT</div>
+      </ProtectedRoute>,
+    );
     expect(screen.getByText("ROUTE_CONFIG_CONTENT")).toBeInTheDocument();
+    expect(replaceMock).not.toHaveBeenCalled();
   });
 });

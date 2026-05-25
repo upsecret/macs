@@ -1,8 +1,10 @@
+"use client";
+
 import { useEffect, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
-import api from "../utils/api";
-import { useResource } from "../hooks/useResource";
-import type { RouteDefinition, GatewayDefinition } from "../types";
+import api from "~/utils/api";
+import { useResource } from "~/hooks/useResource";
+import type { RouteDefinition, GatewayDefinition } from "~/types";
 
 /* ================================================================
    필터/프레디킷 카탈로그 — 이름별 예상 args 정의
@@ -360,8 +362,6 @@ function DefinitionEditor({
    ================================================================ */
 
 export default function RouteConfig() {
-  const [refreshing, setRefreshing] = useState(false);
-
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [form, setForm] = useState<RouteDefinition>(EMPTY_FORM);
@@ -452,19 +452,6 @@ export default function RouteConfig() {
     }
   };
 
-  /* ── Bus Refresh ───────────────────────────────────────── */
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await api.post("/api/config/properties/refresh");
-      showToast("success", "설정 변경사항이 전파되었습니다.");
-    } catch (e) {
-      showToast("error", e instanceof Error ? e.message : "Refresh 실패");
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
   /* ── 폼 업데이트 helpers ───────────────────────────────── */
   const updateDef = (
     field: "predicates" | "filters",
@@ -489,14 +476,6 @@ export default function RouteConfig() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">경로설정</h1>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm
-                       hover:bg-gray-50 disabled:opacity-50 transition-colors"
-          >
-            {refreshing ? "전파 중..." : "변경사항 반영"}
-          </button>
           <button
             onClick={openCreate}
             className="px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary/90 transition-colors"
@@ -623,10 +602,7 @@ export default function RouteConfig() {
       {/* ── 생성/수정 모달 ───────────────────────────────── */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setModalOpen(false)}
-          />
+          <div className="absolute inset-0 bg-black/40" />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col">
             {/* 모달 헤더 */}
             <div className="bg-header px-6 py-4 rounded-t-xl border-b border-gray-200 shrink-0">
@@ -789,10 +765,7 @@ export default function RouteConfig() {
       {/* ── 삭제 확인 모달 ───────────────────────────────── */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setDeleteTarget(null)}
-          />
+          <div className="absolute inset-0 bg-black/40" />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">
               라우트 삭제

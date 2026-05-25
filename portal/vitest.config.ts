@@ -1,11 +1,12 @@
 import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
 import path from "node:path";
 
-// vite.config.ts 와 분리한다. 이유:
-// - reactRouter() plugin 은 파일 라우팅 인덱서라 단위 테스트에서 방해
-// - tailwind plugin 은 테스트에 불필요
+// Next.js 마이그레이션 이후: 별도 vite.config.ts 없이 vitest 만 vite 기반으로 동작.
+// React JSX 변환을 위해 @vitejs/plugin-react 사용.
 // alias ~/* 만 재선언해서 프로덕션 import path 와 맞춘다.
 export default defineConfig({
+  plugins: [react()],
   resolve: {
     alias: {
       "~": path.resolve(__dirname, "./app"),
@@ -20,7 +21,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["app/**/*.{ts,tsx}"],
-      exclude: ["app/**/*.d.ts", "app/routes.ts"],
+      exclude: ["app/**/*.d.ts"],
     },
   },
 });

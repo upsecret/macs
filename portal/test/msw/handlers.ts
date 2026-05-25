@@ -54,7 +54,4 @@ export const handlers = [
   // ── Config (routes + properties) ────────────────────────
   http.get("/api/config/routes", () => HttpResponse.json([])),
   http.get("/api/config/properties", () => HttpResponse.json([])),
-  http.post("/api/config/properties/refresh", () =>
-    HttpResponse.json({ status: "refresh event published" }),
-  ),
 ];

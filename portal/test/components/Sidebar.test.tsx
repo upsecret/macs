@@ -1,16 +1,20 @@
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import Sidebar from "~/components/Sidebar";
 import { useAuthStore } from "~/stores/authStore";
 
-function renderSidebar() {
-  return render(
-    <MemoryRouter>
-      <Sidebar />
-    </MemoryRouter>,
-  );
-}
+// Next.js navigation hooks mock
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/connector",
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+    prefetch: vi.fn(),
+  }),
+}));
 
 describe("components/Sidebar", () => {
   it("admin sees all 4 menus", () => {
@@ -21,7 +25,7 @@ describe("components/Sidebar", () => {
       permissions: [{ system: "common", connector: "portal", role: "admin" }],
     });
 
-    renderSidebar();
+    render(<Sidebar />);
     expect(screen.getByText("커넥터연동")).toBeInTheDocument();
     expect(screen.getByText("권한관리")).toBeInTheDocument();
     expect(screen.getByText("경로설정")).toBeInTheDocument();
@@ -36,7 +40,7 @@ describe("components/Sidebar", () => {
       permissions: [{ system: "common", connector: "portal", role: "viewer" }],
     });
 
-    renderSidebar();
+    render(<Sidebar />);
     expect(screen.getByText("커넥터연동")).toBeInTheDocument();
     expect(screen.queryByText("권한관리")).not.toBeInTheDocument();
     expect(screen.queryByText("경로설정")).not.toBeInTheDocument();
@@ -51,7 +55,7 @@ describe("components/Sidebar", () => {
       permissions: [],
     });
 
-    renderSidebar();
+    render(<Sidebar />);
     expect(screen.getByText("커넥터연동")).toBeInTheDocument();
     expect(screen.queryByText("권한관리")).not.toBeInTheDocument();
   });

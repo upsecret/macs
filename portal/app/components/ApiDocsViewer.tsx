@@ -1,3 +1,5 @@
+"use client";
+
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Info, Copy } from "lucide-react";
 import api from "../utils/api";

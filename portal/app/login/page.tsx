@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
-import { useAuth } from "../hooks/useAuth";
+"use client";
 
-export default function Login() {
-  const navigate = useNavigate();
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "~/hooks/useAuth";
+
+export default function LoginPage() {
+  const router = useRouter();
   const { isAuthenticated, defaultPath, login } = useAuth();
   const [employeeNumber, setEmployeeNumber] = useState("");
   const [error, setError] = useState("");
@@ -12,9 +14,9 @@ export default function Login() {
   // 이미 인증된 상태면 기본 페이지로 이동
   useEffect(() => {
     if (isAuthenticated) {
-      navigate(defaultPath, { replace: true });
+      router.replace(defaultPath);
     }
-  }, [isAuthenticated, defaultPath, navigate]);
+  }, [isAuthenticated, defaultPath, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +27,7 @@ export default function Login() {
 
     try {
       await login("portal", employeeNumber.trim());
-      navigate("/connector", { replace: true });
+      router.replace("/connector");
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "로그인에 실패했습니다.";

@@ -1,12 +1,14 @@
+"use client";
+
 import { useMemo, useState } from "react";
 import { ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react";
-import api from "../utils/api";
-import ApiDocsViewer from "../components/ApiDocsViewer";
-import ConnectorFormModal from "../components/ConnectorFormModal";
-import McpDetailPanel from "../components/McpDetailPanel";
-import { useAuthStore } from "../stores/authStore";
-import { useResource } from "../hooks/useResource";
-import type { Connector, ConnectorType, McpServer } from "../types";
+import api from "~/utils/api";
+import ApiDocsViewer from "~/components/ApiDocsViewer";
+import ConnectorFormModal from "~/components/ConnectorFormModal";
+import McpDetailPanel from "~/components/McpDetailPanel";
+import { useAuthStore } from "~/stores/authStore";
+import { useResource } from "~/hooks/useResource";
+import type { Connector, ConnectorType, McpServer } from "~/types";
 
 const TYPE_BADGE: Record<ConnectorType, string> = {
   agent: "bg-violet-100 text-violet-700",

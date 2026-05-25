@@ -266,7 +266,9 @@ services:
       gateway-service:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://localhost:3000/ || exit 1"]
+      # localhost 는 alpine 에서 IPv6 ::1 우선 해석 → Next.js standalone (IPv4 bind) 에 안 닿음.
+      # 127.0.0.1 명시.
+      test: ["CMD-SHELL", "wget --spider -q http://127.0.0.1:3000/ || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

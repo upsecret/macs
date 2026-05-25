@@ -1,9 +1,11 @@
+"use client";
+
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import { Trash2, Plus, Search, Key, Copy } from "lucide-react";
-import api from "../utils/api";
-import { useResource } from "../hooks/useResource";
-import type { AuthResponse, Permission, AvailableRoute, RouteDefinition } from "../types";
+import api from "~/utils/api";
+import { useResource } from "~/hooks/useResource";
+import type { AuthResponse, Permission, AvailableRoute, RouteDefinition } from "~/types";
 
 const rawClient = axios.create({ baseURL: "", timeout: 10000 });
 

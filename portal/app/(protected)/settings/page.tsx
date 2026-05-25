@@ -1,7 +1,9 @@
+"use client";
+
 import { useEffect, useRef, useState } from "react";
-import api from "../utils/api";
-import { useResource } from "../hooks/useResource";
-import type { ConfigProperty } from "../types";
+import api from "~/utils/api";
+import { useResource } from "~/hooks/useResource";
+import type { ConfigProperty } from "~/types";
 
 /* ── 상수 ──────────────────────────────────────────────────── */
 const APPS = ["application", "gateway-service", "auth-server"];
@@ -12,7 +14,7 @@ const DEFAULT_LABEL = "main";
 interface ChangeLog {
   id: number;
   time: string;
-  action: "CREATE" | "UPDATE" | "DELETE" | "REFRESH";
+  action: "CREATE" | "UPDATE" | "DELETE";
   detail: string;
 }
 
@@ -20,9 +22,6 @@ export default function Settings() {
   /* ── 필터 ──────────────────────────────────────────────── */
   const [application, setApplication] = useState(APPS[0]);
   const [profile, setProfile] = useState(PROFILES[0]);
-
-  /* ── 데이터 ────────────────────────────────────────────── */
-  const [refreshing, setRefreshing] = useState(false);
 
   /* ── 인라인 편집 ───────────────────────────────────────── */
   const [editingKey, setEditingKey] = useState<string | null>(null);
@@ -166,28 +165,11 @@ export default function Settings() {
     }
   };
 
-  /* ================================================================
-     Bus Refresh
-     ================================================================ */
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await api.post("/api/config/properties/refresh");
-      addLog("REFRESH", "Bus refresh 전파 완료");
-      showToast("success", "변경사항이 모든 서비스에 적용되었습니다.");
-    } catch (e) {
-      showToast("error", e instanceof Error ? e.message : "Refresh 실패");
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
   /* ── 이력 액션별 색상 ──────────────────────────────────── */
   const actionStyle: Record<ChangeLog["action"], string> = {
     CREATE: "bg-green-100 text-green-800",
     UPDATE: "bg-info/10 text-info",
     DELETE: "bg-error/10 text-error",
-    REFRESH: "bg-accent/10 text-amber-800",
   };
 
   /* ================================================================
@@ -198,16 +180,6 @@ export default function Settings() {
       {/* ── 페이지 헤더 ──────────────────────────────────── */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">설정정보</h1>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm
-                       hover:bg-gray-50 disabled:opacity-50 transition-colors"
-          >
-            {refreshing ? "전파 중..." : "변경사항 적용"}
-          </button>
-        </div>
       </div>
 
       {/* ── 토스트 ───────────────────────────────────────── */}
@@ -485,7 +457,7 @@ export default function Settings() {
       {/* ── 삭제 확인 모달 ───────────────────────────────── */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteTarget(null)} />
+          <div className="absolute inset-0 bg-black/40" />
           <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-2">속성 삭제</h3>
             <p className="text-sm text-gray-600 mb-1">다음 속성을 삭제하시겠습니까?</p>

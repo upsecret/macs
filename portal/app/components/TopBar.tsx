@@ -1,14 +1,16 @@
-import { useNavigate } from "react-router";
+"use client";
+
+import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import { useAuthStore } from "../stores/authStore";
 
 export default function TopBar() {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { appName, employeeNumber, logout } = useAuthStore();
 
   const handleLogout = () => {
     logout();
-    navigate("/login", { replace: true });
+    router.replace("/login");
   };
 
   return (

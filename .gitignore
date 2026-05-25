@@ -30,6 +30,7 @@ libs/*.jar
 # Eclipse / build output directories
 bin/
 
-# Node / React Router build artifacts
-node_modules/
-.react-router/
+# Node / React Router / Next.js build artifacts
+**/node_modules/**
+**/.react-router/**
+**/.next/**

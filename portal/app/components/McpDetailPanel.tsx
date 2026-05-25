@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState } from "react";
 import { Play, Activity, RefreshCw } from "lucide-react";
 import api from "../utils/api";

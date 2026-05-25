@@ -8,12 +8,18 @@ RUN npm install
 COPY . .
 RUN npm run build
 
-# ── Stage 2: Runtime (Nginx) ─────────────────────────────────
-FROM nginx:alpine
+# ── Stage 2: Runtime (Node + Next.js standalone) ─────────────
+FROM node:22-alpine
+WORKDIR /app
 
-COPY --from=build /app/build/client /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+COPY --from=build /app/.next/standalone ./
+COPY --from=build /app/.next/static ./.next/static
+COPY --from=build /app/public ./public
 
 EXPOSE 3000
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["node", "server.js"]

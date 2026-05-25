@@ -1,19 +1,19 @@
 import { type ReactElement } from "react";
 import { render, type RenderOptions } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
 
 interface Options extends Omit<RenderOptions, "wrapper"> {
   route?: string;
 }
 
-// MemoryRouter 기반 래퍼. RR7 의 data router(createMemoryRouter + RouterProvider)
-// 는 loader/action 이 있을 때만 필요하고, 현재 라우트들은 컴포넌트 본체에서
-// 모든 fetching 을 하므로 MemoryRouter 로 충분하다.
-export function renderWithProviders(ui: ReactElement, { route = "/", ...rest }: Options = {}) {
+// Next.js App Router 환경 — useRouter/usePathname 등은 test/setup.ts 에서 mock 처리.
+// React Router 시절 MemoryRouter 래퍼는 더 이상 필요 없음 (단순 fragment).
+// `route` 옵션은 호출부 호환을 위해 유지하되, mock 된 usePathname 이 직접 반영하도록 setup에서 처리.
+export function renderWithProviders(
+  ui: ReactElement,
+  { route: _route = "/", ...rest }: Options = {},
+) {
   return render(ui, {
-    wrapper: ({ children }) => (
-      <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
-    ),
+    wrapper: ({ children }) => <>{children}</>,
     ...rest,
   });
 }
