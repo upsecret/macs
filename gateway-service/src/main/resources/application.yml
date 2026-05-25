@@ -4,11 +4,7 @@ server:
 spring:
   application:
     name: gateway-service
-  config:
-    import: "optional:configserver:http://admin-server:8888"
   cloud:
-    config:
-      fail-fast: false
     bus:
       enabled: true
     gateway:

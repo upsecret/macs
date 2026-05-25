@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.bus.BusProperties;
 import org.springframework.cloud.bus.event.RefreshRemoteApplicationEvent;
+import org.springframework.cloud.gateway.event.RefreshRoutesEvent;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -133,6 +134,7 @@ public class ConfigPropertyService {
                                                     application, profile, label, request.id(),
                                                     request.uri(), nextIndex)));
                         })))
+                .doOnSuccess(v -> publishRefreshRoutesLocally(application, "createRoute"))
                 .thenReturn(toRouteResponse(request));
     }
 
@@ -153,6 +155,7 @@ public class ConfigPropertyService {
                                 .doOnNext(synced -> log.info(
                                         "Route UPDATED app={} profile={} label={} id={} newUri={} docsSynced={}",
                                         application, profile, label, routeId, request.uri(), synced))))
+                .doOnSuccess(v -> publishRefreshRoutesLocally(application, "updateRoute"))
                 .thenReturn(toRouteResponse(request));
     }
 
@@ -168,24 +171,35 @@ public class ConfigPropertyService {
                         .flatMap(removed -> removeSwaggerUrlEntry(application, profile, label, routeId)
                                 .doOnSuccess(v -> log.info(
                                         "Route DELETED app={} profile={} label={} id={} docsRemoved={}",
-                                        application, profile, label, routeId, removed))));
+                                        application, profile, label, routeId, removed))))
+                .doOnSuccess(v -> publishRefreshRoutesLocally(application, "deleteRoute"));
     }
 
     // ── Refresh ─────────────────────────────────────────────────
 
     /**
      * Spring Cloud Bus refresh — broadcasts to all bus participants so each gateway
-     * re-fetches its routes from Spring Cloud Config (admin-server). Same behavior as
-     * the original admin-server's POST /api/config/properties/refresh endpoint.
+     * re-fetches its routes. Kept here for compatibility with the manual portal
+     * "변경사항 반영" button; will be removed in PR 4 along with the bus dependency.
      */
     public void publishRefreshEvent() {
-        // originService 는 BusProperties.getId() 를 써야 한다 — applicationContext.getId() 면
-        // Spring Cloud Bus 의 acceptLocal 핸들러가 isFromSelf 검사에서 false 로 떨어져
-        // outbound channel 로 안 흘러간다. 표준 /actuator/busrefresh 도 동일.
         String origin = busProperties.getId();
         log.info("Publishing RefreshRemoteApplicationEvent destination=** origin={}", origin);
         applicationContext.publishEvent(
                 new RefreshRemoteApplicationEvent(this, origin, "**"));
+        // Also fire the in-process event so this gateway reloads routes immediately
+        // even if no bus subscriber is listening (which becomes the case after PR 4).
+        publishRefreshRoutesLocally("manual", "publishRefreshEvent");
+    }
+
+    /**
+     * In-process route reload. Spring Cloud Gateway's RouteRefreshListener catches
+     * RefreshRoutesEvent and asks CompositeRouteDefinitionLocator (which includes
+     * DbRouteDefinitionRepository) to re-fetch.
+     */
+    private void publishRefreshRoutesLocally(String application, String trigger) {
+        log.info("Publishing local RefreshRoutesEvent trigger={} app={}", trigger, application);
+        applicationContext.publishEvent(new RefreshRoutesEvent(this));
     }
 
     // ════════════════════════════════════════════════════════════
