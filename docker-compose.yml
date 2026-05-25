@@ -275,12 +275,17 @@ services:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_CONFIG_IMPORT: "optional:configserver:http://admin-server:8888"
       SPRING_DATA_REDIS_HOST: redis
+      SPRING_R2DBC_URL: r2dbc:oracle://oracle:1521/FREE
+      SPRING_R2DBC_USERNAME: macs
+      SPRING_R2DBC_PASSWORD: macs_password
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       OTEL_EXPORTER_OTLP_PROTOCOL: grpc
     depends_on:
       admin-server:
         condition: service_healthy
       auth-server:
+        condition: service_healthy
+      oracle:
         condition: service_healthy
       redis:
         condition: service_healthy

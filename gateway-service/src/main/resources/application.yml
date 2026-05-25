@@ -24,6 +24,12 @@ spring:
     redis:
       host: redis
       port: 6379
+  r2dbc:
+    url: r2dbc:oracle://oracle:1521/FREE
+    username: macs
+    password: macs_password
+    properties:
+      defaultSchema: MACS
   kafka:
     bootstrap-servers: kafka:29092
 
