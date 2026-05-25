@@ -2,6 +2,12 @@
 # ============================================================
 # MACS System – 통합 검증 스크립트
 #
+# !! STALE — 다음 항목들이 현재 시스템과 어긋남, 사용 전 재작성 필요:
+#   - 헤더: app_name/employee_number → Client-App/Employee-Number (이전 마이그레이션)
+#   - admin-server 종료됨 (gateway에 흡수, PR 5). $ADMIN 변수와 macs-admin-server 컨테이너 참조 제거 필요.
+#   - kafka 제거됨 (PR 4). macs-kafka 컨테이너 검증/$KAFKA 변수 무의미.
+#   - /api/auth/apps, /api/auth/groups/* 엔드포인트는 현재 코드베이스에 없음.
+#
 # 사용법:
 #   chmod +x scripts/verify-system.sh
 #   ./scripts/verify-system.sh

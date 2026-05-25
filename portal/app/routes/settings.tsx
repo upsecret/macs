@@ -4,7 +4,7 @@ import { useResource } from "../hooks/useResource";
 import type { ConfigProperty } from "../types";
 
 /* ── 상수 ──────────────────────────────────────────────────── */
-const APPS = ["application", "gateway-service", "auth-server", "admin-server"];
+const APPS = ["application", "gateway-service", "auth-server"];
 const PROFILES = ["default", "dev", "prod"];
 const DEFAULT_LABEL = "main";
 

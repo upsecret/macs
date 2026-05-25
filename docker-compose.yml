@@ -4,7 +4,7 @@
 # 실행:
 #   전체:       docker compose up -d
 #   인프라만:   docker compose up -d oracle redis elasticsearch es-setup kibana apm-server otel-collector elastic-agent
-#   앱만:       docker compose up -d admin-server auth-server gateway-service portal
+#   앱만:       docker compose up -d auth-server gateway-service portal
 #   빌드+실행:  docker compose up -d --build
 # ============================================================
 
@@ -169,34 +169,6 @@ services:
         condition: service_healthy
       elasticsearch:
         condition: service_healthy
-    networks:
-      - macs-network
-
-  # ── Admin Server ───────────────────────────────────────────
-  admin-server:
-    build:
-      context: .
-      dockerfile: admin-server/Dockerfile
-    container_name: macs-admin-server
-    ports:
-      - "8888:8888"
-    environment:
-      SPRING_PROFILES_ACTIVE: docker
-      SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle:1521/FREE
-      SPRING_DATASOURCE_USERNAME: macs
-      SPRING_DATASOURCE_PASSWORD: macs_password
-      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
-    depends_on:
-      oracle:
-        condition: service_healthy
-      otel-collector:
-        condition: service_started
-    healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://localhost:8888/actuator/health || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 40s
     networks:
       - macs-network
 

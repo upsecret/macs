@@ -40,16 +40,18 @@ management:
       show-values: ALWAYS
 
 # ── SpringDoc Swagger ────────────────────────────────────────
+# admin-server merged into gateway (PR 5): admin/config 컨트롤러는 gateway 자체 /v3/api-docs 에 포함됨.
+# auth-server 만 별도 spec (별도 프로세스).
 springdoc:
   api-docs:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
     urls:
+      - name: gateway-service
+        url: /v3/api-docs
       - name: auth-server
         url: /v3/api-docs/auth-server
-      - name: admin-server
-        url: /v3/api-docs/admin-server
 
 # ── OTel ─────────────────────────────────────────────────────
 otel:
