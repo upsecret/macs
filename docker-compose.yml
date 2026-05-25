@@ -279,6 +279,7 @@ services:
       SPRING_R2DBC_USERNAME: macs
       SPRING_R2DBC_PASSWORD: macs_password
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,metrics,prometheus,gateway,busrefresh,refresh,env,mappings,beans"
       OTEL_EXPORTER_OTLP_PROTOCOL: grpc
     depends_on:
       admin-server:
