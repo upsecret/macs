@@ -36,6 +36,13 @@ public class PermissionRepository {
                 .all();
     }
 
+    public Flux<Permission> findByEmployeeNumber(String employeeNumber) {
+        return db.sql("SELECT " + COLS + " FROM PERMISSION WHERE EMPLOYEE_NUMBER = :emp")
+                .bind("emp", employeeNumber)
+                .map(rowMapper())
+                .all();
+    }
+
     public Flux<Permission> findByAppNameAndEmployeeNumber(String appName, String employeeNumber) {
         return db.sql("SELECT " + COLS + " FROM PERMISSION "
                         + "WHERE APP_NAME = :appName AND EMPLOYEE_NUMBER = :emp")

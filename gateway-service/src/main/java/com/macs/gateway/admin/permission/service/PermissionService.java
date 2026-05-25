@@ -27,12 +27,15 @@ public class PermissionService {
     }
 
     public Flux<PermissionResponse> list(String appName, String employeeNumber) {
+        boolean hasApp = appName != null && !appName.isBlank();
+        boolean hasEmp = employeeNumber != null && !employeeNumber.isBlank();
         Flux<Permission> rows;
-        if (appName != null && !appName.isBlank()
-                && employeeNumber != null && !employeeNumber.isBlank()) {
+        if (hasApp && hasEmp) {
             rows = repository.findByAppNameAndEmployeeNumber(appName, employeeNumber);
-        } else if (appName != null && !appName.isBlank()) {
+        } else if (hasApp) {
             rows = repository.findByAppName(appName);
+        } else if (hasEmp) {
+            rows = repository.findByEmployeeNumber(employeeNumber);
         } else {
             rows = repository.findAll();
         }
