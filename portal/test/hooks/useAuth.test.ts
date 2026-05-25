@@ -20,7 +20,7 @@ describe("hooks/useAuth", () => {
     expect(state.employeeNumber).toBe("2078432");
     expect(state.appName).toBe("portal");
     expect(state.permissions).toEqual([
-      { system: "common", connector: "portal", role: "admin" },
+      { system: "common", connector: "portal-route", role: "admin" },
     ]);
     expect(state.isAuthenticated()).toBe(true);
   });
@@ -77,7 +77,7 @@ describe("hooks/useAuth", () => {
       token: "x",
       appName: "portal",
       employeeNumber: "2078432",
-      permissions: [{ system: "common", connector: "portal", role: "admin" }],
+      permissions: [{ system: "common", connector: "portal-route", role: "admin" }],
     });
     expect(useAuthStore.getState().isAuthenticated()).toBe(true);
 

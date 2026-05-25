@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useAuthStore } from "~/stores/authStore";
 
-const ADMIN_PERM = { system: "common", connector: "portal", role: "admin" };
-const VIEWER_PERM = { system: "common", connector: "portal", role: "viewer" };
+const ADMIN_PERM = { system: "common", connector: "portal-route", role: "admin" };
+const USER_PERM = { system: "common", connector: "portal-route", role: "user" };
 
 function seed(perms = [ADMIN_PERM]) {
   useAuthStore.getState().setAuth({
@@ -40,7 +40,7 @@ describe("stores/authStore", () => {
     });
 
     it("false when no admin permission", () => {
-      seed([VIEWER_PERM]);
+      seed([USER_PERM]);
       expect(useAuthStore.getState().isAdmin()).toBe(false);
     });
 
@@ -52,7 +52,7 @@ describe("stores/authStore", () => {
 
   describe("isAllowedConnector", () => {
     it("true when permissions contain a matching connector", () => {
-      seed([{ system: "common", connector: "rms-service", role: "viewer" }]);
+      seed([{ system: "common", connector: "rms-service", role: "user" }]);
       expect(useAuthStore.getState().isAllowedConnector("rms-service")).toBe(true);
     });
 
@@ -64,13 +64,13 @@ describe("stores/authStore", () => {
 
   describe("getRole", () => {
     it("returns admin when any permission is admin (regardless of order)", () => {
-      seed([VIEWER_PERM, ADMIN_PERM]);
+      seed([USER_PERM, ADMIN_PERM]);
       expect(useAuthStore.getState().getRole()).toBe("admin");
     });
 
     it("returns first permission role when no admin", () => {
-      seed([VIEWER_PERM]);
-      expect(useAuthStore.getState().getRole()).toBe("viewer");
+      seed([USER_PERM]);
+      expect(useAuthStore.getState().getRole()).toBe("user");
     });
 
     it("returns null when no permissions", () => {

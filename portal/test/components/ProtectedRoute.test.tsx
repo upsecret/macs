@@ -40,7 +40,7 @@ describe("components/ProtectedRoute", () => {
       token: "x",
       appName: "portal",
       employeeNumber: "2078432",
-      permissions: [{ system: "common", connector: "portal", role: "admin" }],
+      permissions: [{ system: "common", connector: "portal-route", role: "admin" }],
     });
     currentPath = "/auth-manage";
     render(
@@ -57,7 +57,7 @@ describe("components/ProtectedRoute", () => {
       token: "x",
       appName: "portal",
       employeeNumber: "2065162",
-      permissions: [{ system: "common", connector: "portal", role: "viewer" }],
+      permissions: [{ system: "common", connector: "portal-route", role: "user" }],
     });
     currentPath = "/auth-manage";
     render(
@@ -74,7 +74,7 @@ describe("components/ProtectedRoute", () => {
       token: "x",
       appName: "portal",
       employeeNumber: "2078432",
-      permissions: [{ system: "common", connector: "portal", role: "admin" }],
+      permissions: [{ system: "common", connector: "portal-route", role: "admin" }],
     });
     currentPath = "/route-config";
     render(

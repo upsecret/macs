@@ -1,3 +1,10 @@
+/**
+ * portal 접근 자체에 필요한 connector 식별자. PERMISSION 테이블의
+ * (system=common, connector=portal-route) 행이 있어야 portal 진입 가능.
+ * gateway-service의 portal-route(라우트 id)와 이름을 통일.
+ */
+export const PORTAL_CONNECTOR = "portal-route";
+
 export interface MenuItem {
   key: string;
   path: string;
@@ -17,7 +24,7 @@ export function getMenus(): MenuItem[] {
 
 export function getMenusForRole(role: string | null): MenuItem[] {
   if (role === "admin") return allMenus;
-  // non-admin (user, viewer, etc.): only connector 페이지
+  // non-admin (user, operator, etc.): only connector 페이지
   return allMenus.filter((m) => m.key === "connector");
 }
 

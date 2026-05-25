@@ -40,8 +40,8 @@ describe("utils/permissions", () => {
       expect(menus.map((m) => m.key)).toContain("auth-manage");
     });
 
-    it("viewer only sees the connector menu", () => {
-      const menus = getMenusForRole("viewer");
+    it("user only sees the connector menu", () => {
+      const menus = getMenusForRole("user");
       expect(menus).toHaveLength(1);
       expect(menus[0].key).toBe("connector");
     });

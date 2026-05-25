@@ -11,8 +11,8 @@ const rawClient = axios.create({ baseURL: "", timeout: 10000 });
 
 // 새 권한 모델: {client_app}:{system}:{connector}:{role}
 // employee_number 중심으로 부여/조회.
-// role 값은 admin / operator / viewer (PoC 단계라 enforce 는 connector 매칭만).
-const ROLE_OPTIONS = ["admin", "operator", "viewer"] as const;
+// role 값은 admin / operator / user (PoC 단계라 enforce 는 connector 매칭만).
+const ROLE_OPTIONS = ["admin", "operator", "user"] as const;
 const COMMON_SYSTEMS = ["common", "rms", "fdc", "mes", "yms"];
 
 function decodeJwt(token: string): { header: unknown; payload: unknown } | null {
@@ -37,7 +37,7 @@ export default function AuthManage() {
   const [formEmp, setFormEmp] = useState("");
   const [formSystem, setFormSystem] = useState("common");
   const [formConnector, setFormConnector] = useState("");
-  const [formRole, setFormRole] = useState<(typeof ROLE_OPTIONS)[number]>("viewer");
+  const [formRole, setFormRole] = useState<(typeof ROLE_OPTIONS)[number]>("user");
   const [formError, setFormError] = useState<string | null>(null);
   const [granting, setGranting] = useState(false);
 

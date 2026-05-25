@@ -29,7 +29,7 @@ public class PermissionBootstrapRunner implements ApplicationRunner {
     @Value("${macs.bootstrap.admin.system:common}")
     private String system;
 
-    @Value("${macs.bootstrap.admin.connector:portal}")
+    @Value("${macs.bootstrap.admin.connector:portal-route}")
     private String connector;
 
     @Value("${macs.bootstrap.admin.role:admin}")

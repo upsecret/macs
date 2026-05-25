@@ -22,7 +22,7 @@ describe("components/Sidebar", () => {
       token: "x",
       appName: "portal",
       employeeNumber: "2078432",
-      permissions: [{ system: "common", connector: "portal", role: "admin" }],
+      permissions: [{ system: "common", connector: "portal-route", role: "admin" }],
     });
 
     render(<Sidebar />);
@@ -32,12 +32,12 @@ describe("components/Sidebar", () => {
     expect(screen.getByText("설정정보")).toBeInTheDocument();
   });
 
-  it("viewer sees only 커넥터연동", () => {
+  it("user sees only 커넥터연동", () => {
     useAuthStore.setState({
       token: "x",
       appName: "portal",
       employeeNumber: "2065162",
-      permissions: [{ system: "common", connector: "portal", role: "viewer" }],
+      permissions: [{ system: "common", connector: "portal-route", role: "user" }],
     });
 
     render(<Sidebar />);

@@ -25,7 +25,7 @@ export const handlers = [
     HttpResponse.json({
       appName: params.app,
       employeeNumber: params.emp,
-      permissions: [{ system: "common", connector: "portal", role: "admin" }],
+      permissions: [{ system: "common", connector: "portal-route", role: "admin" }],
     }),
   ),
 

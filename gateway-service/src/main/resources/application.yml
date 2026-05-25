@@ -81,5 +81,5 @@ macs:
       employee-number: ${MACS_BOOTSTRAP_ADMIN_EMPLOYEE_NUMBER:2078432}
       app-name: ${MACS_BOOTSTRAP_ADMIN_APP_NAME:portal}
       system: common
-      connector: portal
+      connector: portal-route
       role: admin
