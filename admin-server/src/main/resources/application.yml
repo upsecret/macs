@@ -20,18 +20,11 @@ spring:
         default_schema: MACS
     open-in-view: false
 
-  cloud:
-    bus:
-      enabled: true
-
-  kafka:
-    bootstrap-servers: kafka:29092
-
 management:
   endpoints:
     web:
       exposure:
-        include: health,busrefresh,info,prometheus,env
+        include: health,info,prometheus,env
   endpoint:
     health:
       show-details: always

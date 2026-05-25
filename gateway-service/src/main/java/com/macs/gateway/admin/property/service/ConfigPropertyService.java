@@ -10,8 +10,6 @@ import com.macs.gateway.admin.property.dto.RouteResponse;
 import com.macs.gateway.admin.property.repository.ConfigPropertyRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.cloud.bus.BusProperties;
-import org.springframework.cloud.bus.event.RefreshRemoteApplicationEvent;
 import org.springframework.cloud.gateway.event.RefreshRoutesEvent;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpStatus;
@@ -46,14 +44,11 @@ public class ConfigPropertyService {
 
     private final ConfigPropertyRepository repository;
     private final ApplicationContext applicationContext;
-    private final BusProperties busProperties;
 
     public ConfigPropertyService(ConfigPropertyRepository repository,
-                                 ApplicationContext applicationContext,
-                                 BusProperties busProperties) {
+                                 ApplicationContext applicationContext) {
         this.repository = repository;
         this.applicationContext = applicationContext;
-        this.busProperties = busProperties;
     }
 
     // ── Property CRUD ───────────────────────────────────────────
@@ -178,25 +173,14 @@ public class ConfigPropertyService {
     // ── Refresh ─────────────────────────────────────────────────
 
     /**
-     * Spring Cloud Bus refresh — broadcasts to all bus participants so each gateway
-     * re-fetches its routes. Kept here for compatibility with the manual portal
-     * "변경사항 반영" button; will be removed in PR 4 along with the bus dependency.
+     * In-process route reload triggered by the portal "변경사항 반영" button.
+     * RouteRefreshListener picks this up and asks CompositeRouteDefinitionLocator
+     * (which includes DbRouteDefinitionRepository) to re-fetch from DB.
      */
     public void publishRefreshEvent() {
-        String origin = busProperties.getId();
-        log.info("Publishing RefreshRemoteApplicationEvent destination=** origin={}", origin);
-        applicationContext.publishEvent(
-                new RefreshRemoteApplicationEvent(this, origin, "**"));
-        // Also fire the in-process event so this gateway reloads routes immediately
-        // even if no bus subscriber is listening (which becomes the case after PR 4).
         publishRefreshRoutesLocally("manual", "publishRefreshEvent");
     }
 
-    /**
-     * In-process route reload. Spring Cloud Gateway's RouteRefreshListener catches
-     * RefreshRoutesEvent and asks CompositeRouteDefinitionLocator (which includes
-     * DbRouteDefinitionRepository) to re-fetch.
-     */
     private void publishRefreshRoutesLocally(String application, String trigger) {
         log.info("Publishing local RefreshRoutesEvent trigger={} app={}", trigger, application);
         applicationContext.publishEvent(new RefreshRoutesEvent(this));

@@ -3,7 +3,7 @@
 #
 # 실행:
 #   전체:       docker compose up -d
-#   인프라만:   docker compose up -d oracle redis kafka elasticsearch es-setup kibana apm-server otel-collector elastic-agent
+#   인프라만:   docker compose up -d oracle redis elasticsearch es-setup kibana apm-server otel-collector elastic-agent
 #   앱만:       docker compose up -d admin-server auth-server gateway-service portal
 #   빌드+실행:  docker compose up -d --build
 # ============================================================
@@ -43,37 +43,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - macs-network
-
-  # ── Kafka (KRaft, no Zookeeper) ─────────────────────────────────
-  kafka:
-    image: confluentinc/cp-kafka:7.7.1
-    container_name: macs-kafka
-    ports:
-      - "9092:9092"
-      - "29092:29092"
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,EXTERNAL://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
-    volumes:
-      - kafka-data:/var/lib/kafka/data
-    healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:29092"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
     networks:
       - macs-network
 
@@ -216,12 +185,9 @@ services:
       SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle:1521/FREE
       SPRING_DATASOURCE_USERNAME: macs
       SPRING_DATASOURCE_PASSWORD: macs_password
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       OTEL_EXPORTER_OTLP_PROTOCOL: grpc
     depends_on:
       oracle:
-        condition: service_healthy
-      kafka:
         condition: service_healthy
       otel-collector:
         condition: service_started
@@ -277,8 +243,7 @@ services:
       SPRING_R2DBC_URL: r2dbc:oracle://oracle:1521/FREE
       SPRING_R2DBC_USERNAME: macs
       SPRING_R2DBC_PASSWORD: macs_password
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,metrics,prometheus,gateway,busrefresh,refresh,env,mappings,beans"
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,metrics,prometheus,gateway,refresh,env,mappings,beans"
       OTEL_EXPORTER_OTLP_PROTOCOL: grpc
     depends_on:
       auth-server:
@@ -340,7 +305,6 @@ services:
 volumes:
   oracle-data:
   redis-data:
-  kafka-data:
   es-data:
   elastic-agent-data:
 

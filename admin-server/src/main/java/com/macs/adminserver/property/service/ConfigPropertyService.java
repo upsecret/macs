@@ -10,9 +10,6 @@ import com.macs.adminserver.property.dto.RouteResponse;
 import com.macs.adminserver.property.repository.ConfigPropertyRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.cloud.bus.BusProperties;
-import org.springframework.cloud.bus.event.RefreshRemoteApplicationEvent;
-import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,15 +42,9 @@ public class ConfigPropertyService {
     private static final String API_DOCS_SUFFIX = "-api-docs";
 
     private final ConfigPropertyRepository repository;
-    private final ApplicationContext applicationContext;
-    private final BusProperties busProperties;
 
-    public ConfigPropertyService(ConfigPropertyRepository repository,
-                                 ApplicationContext applicationContext,
-                                 BusProperties busProperties) {
+    public ConfigPropertyService(ConfigPropertyRepository repository) {
         this.repository = repository;
-        this.applicationContext = applicationContext;
-        this.busProperties = busProperties;
     }
 
     // ── Property CRUD ───────────────────────────────────────────
@@ -177,15 +168,12 @@ public class ConfigPropertyService {
 
     // ── Refresh ─────────────────────────────────────────────────
 
+    /**
+     * Spring Cloud Bus was removed in PR 4. admin-server is being decommissioned
+     * in PR 5; this stub keeps the controller endpoint compilable until then.
+     */
     public void publishRefreshEvent() {
-        // originService 는 BusProperties.getId() 를 써야 한다. applicationContext.getId() 로 만들면
-        // Spring Cloud Bus 의 acceptLocal 핸들러가 isFromSelf 검사에서 false 로 떨어져
-        // 이벤트가 outbound channel 로 안 흘러가고 다른 인스턴스에 도착하지 못한다.
-        // 표준 /actuator/busrefresh 엔드포인트도 동일하게 BusProperties.getId() 를 쓴다.
-        String origin = busProperties.getId();
-        log.info("Publishing RefreshRemoteApplicationEvent destination=** origin={}", origin);
-        applicationContext.publishEvent(
-                new RefreshRemoteApplicationEvent(this, origin, "**"));
+        log.warn("publishRefreshEvent called on legacy admin-server — no-op after bus removal");
     }
 
     // ════════════════════════════════════════════════════════════

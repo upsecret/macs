@@ -151,13 +151,14 @@ CREATE INDEX IDX_PERMISSION_USER ON PERMISSION (APP_NAME, EMPLOYEE_NUMBER);
 -- ============================================================
 -- Sample Data – PROPERTIES  (idempotent; MERGE 로 재실행 안전)
 -- ============================================================
--- 공통 actuator exposure — gateway 가 routes 갱신/진단할 때 필요한 엔드포인트 모두 포함.
--- 이 application/default 시드는 Spring Cloud Config 가 모든 서비스에 적용하므로
--- 각 서비스의 local application.yml 의 include 리스트를 덮어쓴다.
+-- Note: 'application/default/main' 스코프의 시드는 과거 Spring Cloud Config 가
+-- 모든 서비스에 broadcast 하던 공통 설정용이었다. PR 3 에서 Config Server 가 제거되어
+-- 더 이상 client 가 없으므로 이 스코프의 데이터는 dead-seed (남아 있어도 무해).
+-- 신규 환경에서는 각 서비스의 local application.yml 의 management.endpoints 만 사용.
 MERGE INTO PROPERTIES t USING (SELECT
     'application' APPLICATION,'default' PROFILE,'main' LABEL,
     'management.endpoints.web.exposure.include' PROP_KEY,
-    'health,info,prometheus,metrics,env,gateway,refresh,busrefresh' PROP_VALUE FROM dual) s
+    'health,info,prometheus,metrics,env,gateway,refresh' PROP_VALUE FROM dual) s
   ON (t.APPLICATION=s.APPLICATION AND t.PROFILE=s.PROFILE AND t.LABEL=s.LABEL AND t.PROP_KEY=s.PROP_KEY)
   WHEN NOT MATCHED THEN INSERT (APPLICATION,PROFILE,LABEL,PROP_KEY,PROP_VALUE)
     VALUES (s.APPLICATION,s.PROFILE,s.LABEL,s.PROP_KEY,s.PROP_VALUE);

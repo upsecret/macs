@@ -5,8 +5,6 @@ spring:
   application:
     name: gateway-service
   cloud:
-    bus:
-      enabled: true
     gateway:
       server:
         webflux:
@@ -26,15 +24,13 @@ spring:
     password: macs_password
     properties:
       defaultSchema: MACS
-  kafka:
-    bootstrap-servers: kafka:29092
 
 # ── Actuator ─────────────────────────────────────────────────
 management:
   endpoints:
     web:
       exposure:
-        include: health,metrics,prometheus,gateway,busrefresh,refresh,env
+        include: health,metrics,prometheus,gateway,refresh,env
   endpoint:
     health:
       show-details: always
