@@ -173,14 +173,10 @@ public class ConfigPropertyService {
     // ── Refresh ─────────────────────────────────────────────────
 
     /**
-     * In-process route reload triggered by the portal "변경사항 반영" button.
+     * In-process route reload — auto-fired by createRoute/updateRoute/deleteRoute above.
      * RouteRefreshListener picks this up and asks CompositeRouteDefinitionLocator
      * (which includes DbRouteDefinitionRepository) to re-fetch from DB.
      */
-    public void publishRefreshEvent() {
-        publishRefreshRoutesLocally("manual", "publishRefreshEvent");
-    }
-
     private void publishRefreshRoutesLocally(String application, String trigger) {
         log.info("Publishing local RefreshRoutesEvent trigger={} app={}", trigger, application);
         applicationContext.publishEvent(new RefreshRoutesEvent(this));

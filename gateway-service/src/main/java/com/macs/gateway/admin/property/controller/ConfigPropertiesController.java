@@ -18,8 +18,6 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.Map;
-
 @RestController
 @RequestMapping("/api/config/properties")
 @Tag(name = "Config Properties", description = "CRUD operations for config properties")
@@ -62,12 +60,5 @@ public class ConfigPropertiesController {
             @RequestParam(defaultValue = "main") String label,
             @RequestParam String propKey) {
         return service.deleteProperty(application, profile, label, propKey);
-    }
-
-    @PostMapping("/refresh")
-    @Operation(summary = "Publish Spring Cloud Bus refresh event to all services")
-    public Map<String, String> refresh() {
-        service.publishRefreshEvent();
-        return Map.of("status", "refresh event published");
     }
 }
