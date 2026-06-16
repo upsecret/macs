@@ -4,6 +4,7 @@ import com.macs.authserver.dto.PermissionEntry;
 import com.macs.authserver.dto.UserPermissionsResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -14,17 +15,22 @@ import java.util.List;
 public class AdminPermissionClient {
 
     private static final Logger log = LoggerFactory.getLogger(AdminPermissionClient.class);
+    private static final String INTERNAL_SECRET_HEADER = "X-Internal-Secret";
 
     private final WebClient adminServerWebClient;
+    private final String internalSecret;
 
-    public AdminPermissionClient(WebClient adminServerWebClient) {
+    public AdminPermissionClient(WebClient adminServerWebClient,
+                                 @Value("${macs.internal.secret:macs-internal-secret-dev}") String internalSecret) {
         this.adminServerWebClient = adminServerWebClient;
+        this.internalSecret = internalSecret;
     }
 
     public Mono<List<PermissionEntry>> fetch(String appName, String employeeNumber) {
         log.info("Fetching permissions from admin-server app={} emp={}", appName, employeeNumber);
         return adminServerWebClient.get()
                 .uri("/api/admin/permissions/users/{app}/{emp}", appName, employeeNumber)
+                .header(INTERNAL_SECRET_HEADER, internalSecret)
                 .retrieve()
                 .bodyToMono(UserPermissionsResponse.class)
                 .map(UserPermissionsResponse::permissions)

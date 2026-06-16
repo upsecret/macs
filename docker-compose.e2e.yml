@@ -1,0 +1,22 @@
+# ============================================================
+# MACS E2E 오버레이 — 임시 업스트림 API 서버.
+# 사용:
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build dummy-api-server
+# 라우트/권한은 런타임에 admin API 로 주입 (scripts/e2e-test.sh).
+# ============================================================
+services:
+  dummy-api-server:
+    build:
+      context: ./infra/dummy-api-server
+      dockerfile: Dockerfile
+    container_name: macs-dummy-api-server
+    ports:
+      - "8088:8088"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:8088/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - macs-network

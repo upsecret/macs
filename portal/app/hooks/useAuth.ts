@@ -8,10 +8,11 @@ export function useAuth() {
   const store = useAuthStore();
 
   const login = useCallback(async (appName: string, employeeNumber: string) => {
-    // 1. token 발급 — body 는 employee_number 만. 토큰엔 권한이 들어있지 않다.
+    // 1. token 발급 — 토큰은 employee_number + client_app 에 바인딩된다.
+    //    토큰엔 권한(connector)이 들어있지 않다. 권한은 매 요청마다 /validate 에서 확인.
     const { data: tokenData } = await api.post<AuthResponse>(
       "/api/auth/token",
-      { employee_number: employeeNumber },
+      { employee_number: employeeNumber, client_app: appName },
       { headers: { app_name: appName, employee_number: employeeNumber } },
     );
 

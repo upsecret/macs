@@ -8,6 +8,9 @@ public record TokenResponse(
         String token,
 
         @JsonProperty("employee_number")
-        String employeeNumber
+        String employeeNumber,
+
+        @JsonProperty("client_app")
+        String clientApp
 ) {
 }

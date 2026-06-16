@@ -5,6 +5,7 @@ import com.macs.gateway.admin.mcp.dto.McpServerResponse;
 import com.macs.gateway.admin.mcp.dto.McpToolCallRequest;
 import com.macs.gateway.admin.mcp.dto.McpToolCallResponse;
 import com.macs.gateway.admin.mcp.dto.McpToolResponse;
+import com.macs.gateway.admin.mcp.service.McpAccessValidator;
 import com.macs.gateway.admin.mcp.service.McpService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -29,9 +31,11 @@ import java.util.Map;
 public class McpController {
 
     private final McpService service;
+    private final McpAccessValidator accessValidator;
 
-    public McpController(McpService service) {
+    public McpController(McpService service, McpAccessValidator accessValidator) {
         this.service = service;
+        this.accessValidator = accessValidator;
     }
 
     @GetMapping("/servers")
@@ -68,16 +72,21 @@ public class McpController {
     }
 
     @GetMapping("/servers/{id}/tools")
-    @Operation(summary = "Fetch tools/list from the MCP server")
-    public Flux<McpToolResponse> listTools(@PathVariable String id) {
-        return service.listTools(id);
+    @Operation(summary = "Fetch tools/list from the MCP server",
+            description = "권한 필요: PERMISSION connector=mcp:{id} (헤더 app_name/employee_number + Bearer 토큰).")
+    public Flux<McpToolResponse> listTools(@PathVariable String id, ServerWebExchange exchange) {
+        return accessValidator.authorize(exchange, id)
+                .thenMany(service.listTools(id));
     }
 
     @PostMapping("/servers/{id}/tools/call")
-    @Operation(summary = "Invoke a tool via tools/call on the MCP server")
+    @Operation(summary = "Invoke a tool via tools/call on the MCP server",
+            description = "권한 필요: PERMISSION connector=mcp:{id} (헤더 app_name/employee_number + Bearer 토큰).")
     public Mono<McpToolCallResponse> callTool(@PathVariable String id,
-                                              @RequestBody McpToolCallRequest request) {
-        return service.callTool(id, request);
+                                              @RequestBody McpToolCallRequest request,
+                                              ServerWebExchange exchange) {
+        return accessValidator.authorize(exchange, id)
+                .then(service.callTool(id, request));
     }
 
     @GetMapping("/servers/{id}/health")

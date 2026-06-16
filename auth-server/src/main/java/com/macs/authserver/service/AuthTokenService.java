@@ -34,16 +34,24 @@ public class AuthTokenService {
             return Mono.error(new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "employee_number required"));
         }
-        String token = generateJwt(empNo);
-        log.info("Token issued for employee_number={} expires_in={}s", empNo, jwtProperties.expiration());
-        return Mono.just(new TokenResponse(token, empNo));
+        String clientApp = request.clientApp();
+        if (clientApp == null || clientApp.isBlank()) {
+            log.warn("Token issuance rejected: empty client_app (emp={})", empNo);
+            return Mono.error(new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, "client_app required"));
+        }
+        String token = generateJwt(empNo, clientApp);
+        log.info("Token issued for employee_number={} client_app={} expires_in={}s",
+                empNo, clientApp, jwtProperties.expiration());
+        return Mono.just(new TokenResponse(token, empNo, clientApp));
     }
 
-    private String generateJwt(String empNo) {
+    private String generateJwt(String empNo, String clientApp) {
         long now = System.currentTimeMillis();
         return Jwts.builder()
                 .subject(empNo)
                 .claim("employee_number", empNo)
+                .claim("client_app", clientApp)
                 .issuedAt(new Date(now))
                 .expiration(new Date(now + jwtProperties.expiration() * 1000L))
                 .signWith(getSigningKey())

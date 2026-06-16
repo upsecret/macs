@@ -72,6 +72,14 @@ public class AuthValidationGatewayFilterFactory
                         "Missing required header: app_name");
             }
 
+            String employeeNumber = exchange.getRequest().getHeaders().getFirst("employee_number");
+            if (employeeNumber == null || employeeNumber.isBlank()) {
+                // HeaderValidationFilter normally catches this first; this is a safety net.
+                return HeaderValidationFilter.writeError(
+                        exchange, HttpStatus.BAD_REQUEST,
+                        "Missing required header: employee_number");
+            }
+
             Route route = exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR);
             String routeId = route != null ? route.getId() : "";
             String targetConnector = (config.getConnector() != null && !config.getConnector().isBlank())
@@ -80,6 +88,7 @@ public class AuthValidationGatewayFilterFactory
 
             Map<String, String> body = new HashMap<>();
             body.put("app_name", appName);
+            body.put("employee_number", employeeNumber);
             body.put("connector", targetConnector);
 
             return authServiceWebClient.post()

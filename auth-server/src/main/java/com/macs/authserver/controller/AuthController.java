@@ -34,14 +34,15 @@ public class AuthController {
     @PostMapping("/token")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Issue JWT token",
-            description = "Issues a JWT containing only the employee_number. Permission checks happen per-request via /validate.")
+            description = "Issues a JWT bound to employee_number + client_app. Connector permission checks happen per-request via /validate.")
     public Mono<TokenResponse> issueToken(@RequestBody TokenRequest request) {
         return tokenService.issueToken(request);
     }
 
     @PostMapping("/validate")
     @Operation(summary = "Validate JWT token and (optionally) check connector access",
-            description = "Verifies token signature/expiration. If connector is provided in the body, also checks PERMISSION for (app_name, employee_number, connector).")
+            description = "Verifies token signature/expiration and that the request's employee_number/app_name match the token claims. "
+                    + "If connector is provided in the body, also checks PERMISSION for (client_app, employee_number, connector).")
     public Mono<ValidationResponse> validateToken(
             @RequestHeader("Authorization") String authorization,
             @RequestBody ValidationRequest request) {

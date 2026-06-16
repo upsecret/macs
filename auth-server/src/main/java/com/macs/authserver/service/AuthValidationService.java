@@ -40,29 +40,51 @@ public class AuthValidationService {
                                 HttpStatus.UNAUTHORIZED, "Token missing employee_number"));
                     }
 
+                    String clientApp = claims.get("client_app", String.class);
+                    if (clientApp == null || clientApp.isBlank()) {
+                        log.warn("Token validation failed: missing client_app in claims (emp={})", employeeNumber);
+                        return Mono.error(new ResponseStatusException(
+                                HttpStatus.UNAUTHORIZED, "Token missing client_app"));
+                    }
+
+                    // The token is the source of truth: the requester's headers must match the
+                    // identity baked into the token at issuance time. This blocks header spoofing
+                    // (e.g. reusing a valid token under a different employee_number or client_app).
+                    String requestEmployee = request.employeeNumber();
+                    if (requestEmployee != null && !requestEmployee.isBlank()
+                            && !requestEmployee.equals(employeeNumber)) {
+                        log.warn("Validate DENY: employee_number mismatch token={} request={}",
+                                employeeNumber, requestEmployee);
+                        return Mono.error(new ResponseStatusException(
+                                HttpStatus.UNAUTHORIZED, "employee_number does not match token"));
+                    }
+
+                    String requestApp = request.appName();
+                    if (requestApp != null && !requestApp.isBlank()
+                            && !requestApp.equals(clientApp)) {
+                        log.warn("Validate DENY: client_app mismatch token={} request={} (emp={})",
+                                clientApp, requestApp, employeeNumber);
+                        return Mono.error(new ResponseStatusException(
+                                HttpStatus.UNAUTHORIZED, "client_app does not match token"));
+                    }
+
                     String connector = request.connector();
                     if (connector == null || connector.isBlank()) {
-                        log.info("Token valid (signature+expiry only) emp={}", employeeNumber);
+                        log.info("Token valid (signature+expiry+identity) emp={} app={}", employeeNumber, clientApp);
                         return Mono.just(new ValidationResponse(true, true, employeeNumber));
                     }
 
-                    String appName = request.appName();
-                    if (appName == null || appName.isBlank()) {
-                        log.warn("Validate rejected: connector={} provided without app_name (emp={})",
-                                connector, employeeNumber);
-                        return Mono.error(new ResponseStatusException(
-                                HttpStatus.BAD_REQUEST, "app_name is required when connector is provided"));
-                    }
-
-                    return adminPermissionClient.fetch(appName, employeeNumber)
+                    // Identity is verified against the token; look up grants using the trusted
+                    // claim values rather than the request-supplied ones.
+                    return adminPermissionClient.fetch(clientApp, employeeNumber)
                             .map(perms -> {
                                 boolean allowed = matchesConnector(perms, connector);
                                 if (allowed) {
                                     log.info("Validate ALLOW app={} emp={} connector={} (grants={})",
-                                            appName, employeeNumber, connector, perms.size());
+                                            clientApp, employeeNumber, connector, perms.size());
                                 } else {
                                     log.warn("Validate DENY app={} emp={} connector={} (grants={})",
-                                            appName, employeeNumber, connector, perms.size());
+                                            clientApp, employeeNumber, connector, perms.size());
                                 }
                                 return new ValidationResponse(true, allowed, employeeNumber);
                             });

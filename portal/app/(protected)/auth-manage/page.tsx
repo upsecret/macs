@@ -158,12 +158,12 @@ export default function AuthManage() {
     try {
       const { data } = await rawClient.post<AuthResponse>(
         "/api/auth/token",
-        { employee_number: tokenEmp.trim() },
+        // 토큰은 employee_number + client_app 에 바인딩된다. 둘 다 필수.
+        { employee_number: tokenEmp.trim(), client_app: "portal" },
         {
           headers: {
             "Content-Type": "application/json",
-            // app_name 헤더는 gateway HeaderValidationFilter 가 강제하므로 임의값 portal 로 채움.
-            // 토큰 자체엔 app_name 이 들어가지 않는다.
+            // app_name/employee_number 헤더는 gateway HeaderValidationFilter 가 강제.
             app_name: "portal",
             employee_number: tokenEmp.trim(),
           },
@@ -336,23 +336,26 @@ export default function AuthManage() {
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Connector (Route ID)</label>
-              {availableRoutes.length === 0 ? (
-                <p className="text-sm text-gray-400 px-3 py-2 border border-dashed border-gray-300 rounded-lg">
-                  사용 가능한 라우트가 없습니다. 경로설정에서 먼저 라우트를 만드세요.
-                </p>
-              ) : (
-                <select
-                  value={formConnector}
-                  onChange={(e) => setFormConnector(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary/40 focus:border-primary"
-                  required
-                >
-                  {availableRoutes.map((id) => (
-                    <option key={id} value={id}>{id}</option>
-                  ))}
-                </select>
-              )}
+              <label className="block text-xs text-gray-500 mb-1">
+                Connector <span className="text-gray-400">(route id 또는 mcp:&#123;id&#125;)</span>
+              </label>
+              <input
+                type="text"
+                list="connector-options"
+                value={formConnector}
+                onChange={(e) => setFormConnector(e.target.value)}
+                placeholder="orders-route 또는 mcp:dummy-mcp"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary/40 focus:border-primary"
+                required
+              />
+              <datalist id="connector-options">
+                {availableRoutes.map((id) => (
+                  <option key={id} value={id} />
+                ))}
+              </datalist>
+              <p className="text-[11px] text-gray-400 mt-1">
+                gateway route 는 목록에서 선택, MCP 서버는 <code>mcp:서버id</code> 형식으로 입력.
+              </p>
             </div>
 
             <div>
@@ -378,7 +381,7 @@ export default function AuthManage() {
 
             <button
               type="submit"
-              disabled={granting || availableRoutes.length === 0}
+              disabled={granting}
               className="w-full flex items-center justify-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Plus size={16} strokeWidth={2} />
