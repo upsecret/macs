@@ -16,7 +16,9 @@ import org.springframework.web.reactive.function.client.WebClientException;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -47,6 +49,18 @@ public class McpJsonRpcClient {
 
     /** MCP Streamable HTTP 세션 헤더. initialize 응답에서 받아 이후 요청에 동봉. */
     private static final String SESSION_HEADER = "Mcp-Session-Id";
+
+    /**
+     * loopback 라우트의 RequestRateLimiter 가 429 를 줄 때 재시도 한도/간격.
+     * 한 번의 논리 호출(도구 목록/실행)이 게이트웨이 내부에서 여러 JSON-RPC 요청
+     * (initialize → notifications/initialized → method)으로 증폭되는데, 라우트의
+     * 토큰 버킷이 작으면 그 중 일부가 429 로 거부된다. 429 는 업스트림에 도달조차
+     * 못한 "거부"라 재실행 부작용이 없으므로, replenish 주기를 기다렸다 재시도해
+     * 게이트웨이 자체 호출(포털 도구 조회 등)이 rate limit 속도에 맞춰 완료되게 한다.
+     * (외부 직접 클라이언트는 게이트웨이를 거치지 않으므로 그대로 throttle 된다.)
+     */
+    private static final int RATE_LIMIT_MAX_RETRIES = 5;
+    private static final Duration RATE_LIMIT_RETRY_DELAY = Duration.ofSeconds(1);
 
     /** 단일 JSON-RPC 교환 결과 — result 노드 + (협상된) 세션 id. */
     private record McpRpcResult(JsonNode result, String sessionId) {}
@@ -166,6 +180,11 @@ public class McpJsonRpcClient {
                 .bodyValue(body)
                 .retrieve()
                 .toEntity(String.class)
+                // 라우트 RequestRateLimiter 의 429 만 replenish 주기를 기다렸다 재시도.
+                // (재시도 소진 시 마지막 429 를 그대로 전파 → 아래 핸들러가 429 로 매핑)
+                .retryWhen(Retry.fixedDelay(RATE_LIMIT_MAX_RETRIES, RATE_LIMIT_RETRY_DELAY)
+                        .filter(McpJsonRpcClient::isRateLimited)
+                        .onRetryExhaustedThrow((spec, signal) -> signal.failure()))
                 .flatMap(entity -> {
                     String respSid = entity.getHeaders().getFirst(SESSION_HEADER);
                     String sid = (respSid != null && !respSid.isBlank()) ? respSid : sessionId;
@@ -218,6 +237,12 @@ public class McpJsonRpcClient {
                     return Mono.error(new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                             "MCP transport error: " + ex.getMessage()));
                 });
+    }
+
+    /** 라우트(loopback)가 RequestRateLimiter 로 429(Too Many Requests)를 돌려준 경우만 true. */
+    private static boolean isRateLimited(Throwable ex) {
+        return ex instanceof WebClientResponseException w
+                && w.getStatusCode().value() == HttpStatus.TOO_MANY_REQUESTS.value();
     }
 
     /** application/json 이면 그대로, text/event-stream 이면 첫 data 라인의 JSON 만 추출. */

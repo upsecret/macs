@@ -204,22 +204,6 @@ export default function ConnectorPage() {
                       )}
                     </p>
                   </div>
-                  <div className="md:col-span-2">
-                    <span className="text-[10px] uppercase tracking-wider text-gray-400">
-                      Gateway Endpoint (연동 경로)
-                    </span>
-                    {mcp.gatewayPath ? (
-                      <p className="text-sm font-mono text-gray-800 break-all">
-                        {mcp.gatewayPath}
-                        <span className="ml-2 text-xs text-gray-500">(게이트웨이 경유)</span>
-                      </p>
-                    ) : (
-                      <p className="text-sm text-error">
-                        매칭 게이트웨이 라우트 없음 — 경로설정에서{" "}
-                        <code className="font-mono">Path=/mcp/{mcp.id}</code> 라우트를 먼저 등록하세요.
-                      </p>
-                    )}
-                  </div>
                   <div>
                     <span className="text-[10px] uppercase tracking-wider text-gray-400">
                       Transport

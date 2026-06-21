@@ -10,6 +10,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
 import java.util.List;
@@ -91,32 +92,46 @@ public class AuthValidationGatewayFilterFactory
             body.put("employee_number", employeeNumber);
             body.put("connector", targetConnector);
 
+            // 인가 결정만 auth-server 호출 결과/오류에서 산출한다.
+            // onErrorResume 은 validate 호출에만 한정 — chain.filter(업스트림 프록시)의
+            // 다운스트림 오류(DNS 실패/connection refused/5xx/타임아웃)를 401 로 둔갑시키면
+            // 포털이 401 에서 강제 로그아웃하므로, 그 오류는 아래에서 그대로 전파시킨다.
             return authServiceWebClient.post()
                     .uri("/api/auth/validate")
                     .header(HttpHeaders.AUTHORIZATION, authorization)
                     .bodyValue(body)
                     .retrieve()
                     .bodyToMono(Map.class)
-                    .flatMap(resp -> {
-                        Object allowed = resp.get("allowed");
-                        if (Boolean.TRUE.equals(allowed)) {
-                            return chain.filter(exchange);
-                        }
-                        log.warn("Auth denied: app_name={} connector={} route={}",
-                                appName, targetConnector, routeId);
-                        return HeaderValidationFilter.writeError(
-                                exchange, HttpStatus.FORBIDDEN,
-                                "Access denied to " + targetConnector);
-                    })
+                    .map(resp -> Boolean.TRUE.equals(resp.get("allowed"))
+                            ? Decision.ALLOW : Decision.DENY)
                     .onErrorResume(ex -> {
                         log.warn("Auth validation error for connector={} route={}: {}",
                                 targetConnector, routeId, ex.getMessage());
-                        return HeaderValidationFilter.writeError(
-                                exchange, HttpStatus.UNAUTHORIZED,
-                                "Token validation failed");
+                        return Mono.just(Decision.AUTH_ERROR);
+                    })
+                    .flatMap(decision -> {
+                        switch (decision) {
+                            case ALLOW:
+                                // 다운스트림(업스트림 프록시) 오류는 그대로 전파 → 502/504.
+                                return chain.filter(exchange);
+                            case AUTH_ERROR:
+                                return HeaderValidationFilter.writeError(
+                                        exchange, HttpStatus.UNAUTHORIZED,
+                                        "Token validation failed");
+                            case DENY:
+                            default:
+                                log.warn("Auth denied: app_name={} connector={} route={}",
+                                        appName, targetConnector, routeId);
+                                return HeaderValidationFilter.writeError(
+                                        exchange, HttpStatus.FORBIDDEN,
+                                        "Access denied to " + targetConnector);
+                        }
                     });
         };
     }
+
+    /** auth-server 검증 결과 → 인가 결정. ALLOW=통과, DENY=403, AUTH_ERROR=401(검증 실패). */
+    private enum Decision { ALLOW, DENY, AUTH_ERROR }
 
     public static class Config {
         private String connector;
