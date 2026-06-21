@@ -24,7 +24,10 @@ assert_contains() { # needle name
 
 # ── 0. 서비스 헬스 대기 ─────────────────────────────────────
 echo "== 0. 헬스 체크 대기 =="
-for url in "$GW/actuator/health" "http://localhost:9000/actuator/health" "http://localhost:8088/health"; do
+for url in "$GW/actuator/health" "http://localhost:9000/actuator/health" \
+           "http://localhost:8088/health" "http://localhost:8090/health" \
+           "http://localhost:8765/health" "http://localhost:8766/health" \
+           "http://localhost:8767/health" "http://localhost:8768/health"; do
   for i in $(seq 1 30); do
     c=$(curl -s -o /dev/null -w "%{http_code}" "$url" || true)
     [ "$c" = "200" ] && { echo "  up: $url"; break; }
@@ -140,21 +143,32 @@ else
   printf '  \033[31mFAIL\033[0m [유량제어] 200=%s 429=%s (둘 다 ≥1 기대)\n' "$ok" "$limited"; FAIL=$((FAIL+1))
 fi
 
-# ── 8. MCP 권한 게이트 (connector=mcp:dummy-mcp) ───────────
-echo "== 8. MCP 권한 게이트 =="
-# 더미 MCP 등록 (멱등: 이미 있으면 409)
+# ── 8. MCP 권한 게이트 (게이트웨이 게이팅: AuthValidation, connector=route id) ───
+echo "== 8. MCP 권한 게이트 (게이트웨이 라우트 경유) =="
+# 라우트·MCP 서버·권한 모두 런타임 주입 (시드 없음). dummy-mcp-server(8765, stateless/인증없음).
+req DELETE "$GW/api/config/routes/dummy-mcp" "${H_ADMIN[@]}" >/dev/null
+req POST "$GW/api/config/routes" "${H_ADMIN[@]}" -d '{
+  "id":"dummy-mcp","uri":"http://dummy-mcp-server:8765",
+  "predicates":[{"name":"Path","args":{"_genkey_0":"/mcp/dummy-mcp"}}],
+  "filters":[{"name":"RewritePath","args":{"regexp":"/mcp/dummy-mcp","replacement":"/mcp"}},
+             {"name":"AuthValidation","args":{}}],
+  "order":0,"registerSwagger":false}' >/dev/null
 req POST "$GW/api/admin/mcp/servers" "${H_ADMIN[@]}" -d '{
   "id":"dummy-mcp","name":"Dummy MCP Server","description":"echo, add",
-  "endpointUrl":"http://dummy-mcp-server:8765/mcp",
   "transport":"streamable-http","authType":"none","system":"common"}' >/dev/null
-# 권한 부여: 2078432 → mcp:dummy-mcp
+# 권한 부여: 2078432 → dummy-mcp (MCP 도 API 와 동일하게 connector = route id)
 req POST "$GW/api/admin/permissions" "${H_ADMIN[@]}" -d '{
   "appName":"portal","employeeNumber":"2078432","system":"common",
-  "connector":"mcp:dummy-mcp","role":"admin"}' >/dev/null
+  "connector":"dummy-mcp","role":"admin"}' >/dev/null
+# 라우트 refresh 전파 대기
+for i in $(seq 1 15); do
+  c=$(req POST "$GW/api/admin/mcp/servers/dummy-mcp/tools/call" "${H_ADMIN[@]}" -d '{"name":"add","arguments":{"a":2,"b":3}}')
+  [ "$c" = "200" ] && break; sleep 1
+done
 
-# 8-1: 토큰/헤더 없이 → 401 (이제 게이트됨)
+# 8-1: 헤더 없이 → 400 (loopback 라우트의 HeaderValidationFilter 가 app_name 부재 검출)
 c=$(req POST "$GW/api/admin/mcp/servers/dummy-mcp/tools/call" -H "Content-Type: application/json" -d '{"name":"add","arguments":{"a":2,"b":3}}')
-assert 401 "$c" "MCP 토큰 없음 → 401"
+assert 400 "$c" "MCP 헤더 없음 → 400"
 
 # 8-2: 권한 보유자(2078432) → 200, Sum=5
 c=$(req POST "$GW/api/admin/mcp/servers/dummy-mcp/tools/call" \
@@ -196,6 +210,101 @@ assert 403 "$c" "self 권한 조회(타인) → 403"
 c=$(req POST "$GW/api/admin/permissions" "${H_ADMIN[@]}" -d '{
   "appName":"portal","employeeNumber":"2078432","system":"common","connector":"e2e-echo","role":"admin"}')
 assert 409 "$c" "admin: 중복 grant → 409 (다운스트림 에러 보존)"
+
+# ── 10. API 커넥터 문서연동 (swagger-api-server) ─────────────
+echo "== 10. API 커넥터 문서연동 (swagger-api-server) =="
+req DELETE "$GW/api/config/routes/swagger-api" "${H_ADMIN[@]}" >/dev/null
+req POST "$GW/api/config/routes" "${H_ADMIN[@]}" -d '{
+  "id":"swagger-api","uri":"http://swagger-api-server:8090",
+  "predicates":[{"name":"Path","args":{"_genkey_0":"/api/products/**"}}],
+  "filters":[{"name":"AuthValidation","args":{}}],
+  "order":0,"registerSwagger":false}' >/dev/null
+req POST "$GW/api/admin/connectors" "${H_ADMIN[@]}" -d '{
+  "id":"swagger-api","title":"Swagger API Test","type":"api","system":"common"}' >/dev/null
+req POST "$GW/api/admin/permissions" "${H_ADMIN[@]}" -d '{
+  "appName":"portal","employeeNumber":"2078432","system":"common","connector":"swagger-api","role":"admin"}' >/dev/null
+for i in $(seq 1 15); do
+  c=$(req GET "$GW/api/products" "${H_ADMIN[@]}"); [ "$c" != "404" ] && break; sleep 1
+done
+# 10-1: OpenAPI 문서 프록시 (포털 API 문서 뷰어 경로)
+c=$(req GET "$GW/api/admin/connectors/swagger-api/api-docs" "${H_ADMIN[@]}")
+assert 200 "$c" "API docs 프록시 → 200"
+assert_contains '"openapi"' "OpenAPI 문서 취득"
+# 10-2: 게이트웨이 통한 실제 호출
+c=$(req GET "$GW/api/products" "${H_ADMIN[@]}")
+assert 200 "$c" "API 호출(게이트웨이) → 200"
+
+# ── 11. MCP 자체 bearer 검증 (dummy-mcp-auth, AuthValidation 없음) ──
+echo "== 11. MCP 자체 bearer (dummy-mcp-auth) =="
+req DELETE "$GW/api/config/routes/dummy-mcp-auth" "${H_ADMIN[@]}" >/dev/null
+req POST "$GW/api/config/routes" "${H_ADMIN[@]}" -d '{
+  "id":"dummy-mcp-auth","uri":"http://dummy-mcp-auth:8765",
+  "predicates":[{"name":"Path","args":{"_genkey_0":"/mcp/dummy-mcp-auth"}}],
+  "filters":[{"name":"RewritePath","args":{"regexp":"/mcp/dummy-mcp-auth","replacement":"/mcp"}}],
+  "order":0,"registerSwagger":false}' >/dev/null
+req POST "$GW/api/admin/mcp/servers" "${H_ADMIN[@]}" -d '{
+  "id":"dummy-mcp-auth","name":"Dummy MCP (bearer)","transport":"streamable-http",
+  "authType":"bearer","authToken":"mcp-secret-xyz","system":"common"}' >/dev/null
+for i in $(seq 1 15); do
+  c=$(req GET "$GW/api/admin/mcp/servers/dummy-mcp-auth/tools" "${H_ADMIN[@]}"); [ "$c" = "200" ] && break; sleep 1
+done
+# 11-1: 게이트웨이가 저장 bearer 주입 → 200
+assert 200 "$c" "bearer 주입 tools → 200"
+# 11-2: 라우트 직접 호출, bearer 없이 → 업스트림 401 (게이트웨이는 게이팅 안 함)
+c=$(req POST "$GW/mcp/dummy-mcp-auth" -H "app_name: portal" -H "employee_number: 2078432" \
+      -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}')
+assert 401 "$c" "bearer 없이 직접호출 → 401 (서버 검증)"
+
+# ── 12. MCP stateful 세션 (dummy-mcp-stateful, 게이트웨이 게이팅) ──
+echo "== 12. MCP stateful 세션 (dummy-mcp-stateful) =="
+req DELETE "$GW/api/config/routes/dummy-mcp-stateful" "${H_ADMIN[@]}" >/dev/null
+req POST "$GW/api/config/routes" "${H_ADMIN[@]}" -d '{
+  "id":"dummy-mcp-stateful","uri":"http://dummy-mcp-stateful:8765",
+  "predicates":[{"name":"Path","args":{"_genkey_0":"/mcp/dummy-mcp-stateful"}}],
+  "filters":[{"name":"RewritePath","args":{"regexp":"/mcp/dummy-mcp-stateful","replacement":"/mcp"}},
+             {"name":"AuthValidation","args":{}}],
+  "order":0,"registerSwagger":false}' >/dev/null
+req POST "$GW/api/admin/mcp/servers" "${H_ADMIN[@]}" -d '{
+  "id":"dummy-mcp-stateful","name":"Dummy MCP (stateful)","transport":"streamable-http",
+  "authType":"none","system":"common"}' >/dev/null
+req POST "$GW/api/admin/permissions" "${H_ADMIN[@]}" -d '{
+  "appName":"portal","employeeNumber":"2078432","system":"common","connector":"dummy-mcp-stateful","role":"admin"}' >/dev/null
+for i in $(seq 1 15); do
+  c=$(req GET "$GW/api/admin/mcp/servers/dummy-mcp-stateful/tools" "${H_ADMIN[@]}"); [ "$c" = "200" ] && break; sleep 1
+done
+# 12-1: 게이트웨이가 세션(initialize→Mcp-Session-Id→initialized→tools/list) 처리 → 200
+assert 200 "$c" "stateful tools (세션 처리) → 200"
+# 12-2: 세션 없이 직접 tools/list → 400 (서버가 세션 강제)
+c=$(req POST "$GW/mcp/dummy-mcp-stateful" "${H_ADMIN[@]}" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}')
+assert 400 "$c" "세션 없이 직접 tools/list → 400 (세션 강제)"
+
+# ── 13. MCP stateful + bearer 동시 (dummy-mcp-both) ──────────
+echo "== 13. MCP stateful + bearer (dummy-mcp-both) =="
+req DELETE "$GW/api/config/routes/dummy-mcp-both" "${H_ADMIN[@]}" >/dev/null
+req POST "$GW/api/config/routes" "${H_ADMIN[@]}" -d '{
+  "id":"dummy-mcp-both","uri":"http://dummy-mcp-both:8765",
+  "predicates":[{"name":"Path","args":{"_genkey_0":"/mcp/dummy-mcp-both"}}],
+  "filters":[{"name":"RewritePath","args":{"regexp":"/mcp/dummy-mcp-both","replacement":"/mcp"}}],
+  "order":0,"registerSwagger":false}' >/dev/null
+req POST "$GW/api/admin/mcp/servers" "${H_ADMIN[@]}" -d '{
+  "id":"dummy-mcp-both","name":"Dummy MCP (stateful+bearer)","transport":"streamable-http",
+  "authType":"bearer","authToken":"both-secret-789","system":"common"}' >/dev/null
+for i in $(seq 1 15); do
+  c=$(req GET "$GW/api/admin/mcp/servers/dummy-mcp-both/tools" "${H_ADMIN[@]}"); [ "$c" = "200" ] && break; sleep 1
+done
+# 13-1: bearer 주입 + 세션 처리 동시 → 200
+assert 200 "$c" "bearer+세션 tools → 200"
+c=$(req POST "$GW/api/admin/mcp/servers/dummy-mcp-both/tools/call" "${H_ADMIN[@]}" -d '{"name":"add","arguments":{"a":6,"b":7}}')
+assert_contains 'Sum = 13' "bearer+세션 tools/call (add=13)"
+# 13-2: bearer 없이 직접 → 401
+c=$(req POST "$GW/mcp/dummy-mcp-both" -H "app_name: portal" -H "employee_number: 2078432" \
+      -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}')
+assert 401 "$c" "bearer 없이 직접 → 401"
+# 13-3: bearer O + 세션 없이 tools/list → 400
+c=$(req POST "$GW/mcp/dummy-mcp-both" -H "Authorization: Bearer both-secret-789" \
+      -H "app_name: portal" -H "employee_number: 2078432" -H "Content-Type: application/json" \
+      -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}')
+assert 400 "$c" "bearer O, 세션 없이 → 400"
 
 # ── 요약 ────────────────────────────────────────────────────
 echo ""

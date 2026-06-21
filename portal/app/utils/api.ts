@@ -24,13 +24,16 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-/* ── Response: 401/403 자동 로그아웃 ──────────────────────── */
+/* ── Response: 401 자동 로그아웃 ──────────────────────────── */
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError<{ message?: string; error?: string }>) => {
     const status = error.response?.status;
 
-    if (status === 401 || status === 403) {
+    // 401(인증 실패: 토큰 무효/만료)만 로그아웃한다. 403(인가 거부)은 토큰/세션이
+    // 유효한 상태이므로 로그아웃하지 않고 호출부에서 에러로 처리한다.
+    // (예: MCP 도구 사용 권한 없음 → 패널에 에러만 표시, 세션 유지)
+    if (status === 401) {
       const currentPath = window.location.pathname;
       // 로그인 페이지에서 발생한 인증 오류는 redirect 하지 않음
       if (currentPath !== "/login") {

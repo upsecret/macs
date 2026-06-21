@@ -28,8 +28,11 @@ import java.util.Map;
  * <ul>
  *   <li>{@code GET /api/admin/permissions/users/{app}/{emp}} — auth-server S2S 역호출(루프 방지)
  *       또는 사용자 본인 권한 조회(로그인). 내부 시크릿 헤더 또는 본인 토큰이면 허용(admin 불필요).</li>
- *   <li>MCP 도구 경로(tools, tools/call) — McpController 가 {@code mcp:{id}}
- *       커넥터 권한으로 자체 게이팅하므로 여기서는 통과.</li>
+ *   <li>커넥터/MCP 레지스트리 조회(GET {@code /api/admin/connectors}, {@code /api/admin/mcp/servers}) —
+ *       portal 접근 권한({@code portal-route})자면 admin 이 아니어도 현 상황 열람 가능.</li>
+ *   <li>MCP 도구 호출(POST {@code .../tools/call}) — McpController 가 게이트웨이 라우트
+ *       ({@code /mcp/{id}}) loopback 으로 프록시하고, 그 라우트의 {@code AuthValidation}
+ *       필터가 인가를 담당하므로 여기서는 통과.</li>
  * </ul>
  */
 @Component
@@ -39,6 +42,8 @@ public class AdminAccessFilter implements WebFilter, Ordered {
 
     private static final String USER_PERM_PREFIX = "/api/admin/permissions/users/";
     private static final String INTERNAL_SECRET_HEADER = "X-Internal-Secret";
+    /** portal 진입 자체에 필요한 connector — 이 권한만 있으면 레지스트리 조회 허용. */
+    private static final String PORTAL_CONNECTOR = "portal-route";
 
     private final WebClient authServiceWebClient;
     private final PermissionService permissionService;
@@ -67,15 +72,19 @@ public class AdminAccessFilter implements WebFilter, Ordered {
         if (HttpMethod.OPTIONS.equals(exchange.getRequest().getMethod())) {
             return chain.filter(exchange);
         }
-        // MCP 도구 호출은 McpController 가 mcp:{id} 권한으로 자체 게이팅
-        if (isMcpToolPath(path)) {
-            return chain.filter(exchange);
-        }
         // 사용자 본인 권한 조회 / auth-server S2S 역호출
         if (isUserPermFetch(exchange, path)) {
             return handleUserPermFetch(exchange, chain, path);
         }
-        // 그 외 관리 엔드포인트 → 토큰 + admin role
+        // MCP 도구 호출(POST tools/call)은 McpController 가 mcp:{id} 권한으로 자체 게이팅
+        if (isMcpToolCallPath(path)) {
+            return chain.filter(exchange);
+        }
+        // 커넥터/MCP 레지스트리 조회(GET) → portal 접근 권한자면 누구나 현 상황 열람
+        if (HttpMethod.GET.equals(exchange.getRequest().getMethod()) && isRegistryReadPath(path)) {
+            return requirePortalAccess(exchange, chain);
+        }
+        // 그 외 관리/변경 엔드포인트 → 토큰 + admin role
         return requireAdmin(exchange, chain);
     }
 
@@ -83,8 +92,15 @@ public class AdminAccessFilter implements WebFilter, Ordered {
         return path.startsWith("/api/admin") || path.startsWith("/api/config");
     }
 
-    private boolean isMcpToolPath(String path) {
-        return path.matches("/api/admin/mcp/servers/[^/]+/tools(/call)?");
+    /** MCP 도구 호출(POST tools/call) — McpController 가 mcp:{id} 권한으로 자체 게이팅. */
+    private boolean isMcpToolCallPath(String path) {
+        return path.matches("/api/admin/mcp/servers/[^/]+/tools/call");
+    }
+
+    /** 커넥터/MCP 레지스트리 조회 경로 — GET 이면 portal 접근자 모두 열람 가능. */
+    private boolean isRegistryReadPath(String path) {
+        return path.equals("/api/admin/connectors") || path.startsWith("/api/admin/connectors/")
+                || path.equals("/api/admin/mcp/servers") || path.startsWith("/api/admin/mcp/servers/");
     }
 
     private boolean isUserPermFetch(ServerWebExchange exchange, String path) {
@@ -163,6 +179,40 @@ public class AdminAccessFilter implements WebFilter, Ordered {
                             .map(resp -> resp.permissions().stream()
                                     .anyMatch(e -> "admin".equalsIgnoreCase(e.role())))
                             .map(isAdmin -> isAdmin ? Decision.ALLOW : Decision.FORBIDDEN)
+                            .onErrorReturn(Decision.UNAUTHORIZED);
+                });
+    }
+
+    // ── 레지스트리 조회: 토큰 + portal 접근 권한 ──────────────────
+    private Mono<Void> requirePortalAccess(ServerWebExchange exchange, WebFilterChain chain) {
+        HttpHeaders headers = exchange.getRequest().getHeaders();
+        String app = headers.getFirst("app_name");
+        String emp = headers.getFirst("employee_number");
+        Mono<Void> precheck = checkHeaders(exchange, app, emp);
+        if (precheck != null) {
+            return precheck;
+        }
+        return portalDecision(exchange, app, emp).flatMap(decision -> switch (decision) {
+            case ALLOW -> chain.filter(exchange);
+            case FORBIDDEN -> {
+                log.warn("Portal gate DENY: no portal access app={} emp={} path={}",
+                        app, emp, exchange.getRequest().getURI().getPath());
+                yield HeaderValidationFilter.writeError(exchange, HttpStatus.FORBIDDEN, "Portal access required");
+            }
+            case UNAUTHORIZED -> HeaderValidationFilter.writeError(exchange, HttpStatus.UNAUTHORIZED, "Token validation failed");
+        });
+    }
+
+    private Mono<Decision> portalDecision(ServerWebExchange exchange, String app, String emp) {
+        return validateToken(exchange, app, emp)
+                .flatMap(valid -> {
+                    if (!valid) {
+                        return Mono.just(Decision.UNAUTHORIZED);
+                    }
+                    return permissionService.forUser(app, emp)
+                            .map(resp -> resp.permissions().stream()
+                                    .anyMatch(e -> PORTAL_CONNECTOR.equals(e.connector())))
+                            .map(hasPortal -> hasPortal ? Decision.ALLOW : Decision.FORBIDDEN)
                             .onErrorReturn(Decision.UNAUTHORIZED);
                 });
     }

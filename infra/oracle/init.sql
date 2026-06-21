@@ -277,18 +277,7 @@ MERGE INTO PERMISSION t USING (SELECT 'portal' APP_NAME,'2065162' EMPLOYEE_NUMBE
   WHEN NOT MATCHED THEN INSERT (APP_NAME,EMPLOYEE_NUMBER,SYSTEM,CONNECTOR,ROLE)
     VALUES (s.APP_NAME,s.EMPLOYEE_NUMBER,s.SYSTEM,s.CONNECTOR,s.ROLE);
 
--- ============================================================
--- Sample Data – MCP_SERVER (dummy MCP test server)
--- ============================================================
--- docker-compose 의 dummy-mcp-server 컨테이너를 가리키는 시드.
-MERGE INTO MCP_SERVER t USING (SELECT
-    'dummy-mcp' ID, 'Dummy MCP Server' NAME,
-    'Built-in test MCP server (echo, add tools)' DESCRIPTION,
-    'http://dummy-mcp-server:8765/mcp' ENDPOINT_URL,
-    'streamable-http' TRANSPORT, 'none' AUTH_TYPE, NULL AUTH_TOKEN,
-    'common' SYSTEM FROM dual) s
-  ON (t.ID = s.ID)
-  WHEN NOT MATCHED THEN INSERT (ID,NAME,DESCRIPTION,ENDPOINT_URL,TRANSPORT,AUTH_TYPE,AUTH_TOKEN,SYSTEM)
-    VALUES (s.ID,s.NAME,s.DESCRIPTION,s.ENDPOINT_URL,s.TRANSPORT,s.AUTH_TYPE,s.AUTH_TOKEN,s.SYSTEM);
+-- 주: 테스트용 라우트(routes[5+]) · 커넥터 · MCP_SERVER · 그에 대한 권한은 운영 시드에서 제외했다.
+--     테스트 컨테이너(docker-compose.e2e.yml)와 함께 scripts/e2e-permission-test.sh 가 런타임에 주입한다.
 
 COMMIT;

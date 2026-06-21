@@ -57,27 +57,44 @@
 
 → 이제 해당 사번이 그 토큰/헤더로 `/api/orders/**` 호출 가능. 권한 없으면 403, 토큰/claim 불일치 401.
 
-## A-2. MCP 서버 등록 (커넥터연동 → 권한관리 → 도구 테스트)
+## A-2. MCP 서버 등록 (경로설정 → 필터(선택) → 커넥터연동)
 
-### ① 커넥터연동 — MCP 서버 등록
-**커넥터연동** → **+ 등록** 모달:
-- **Type**: `mcp` (선택 시 MCP 전용 필드로 전환)
+MCP 서버도 API 와 **동일하게 게이트웨이 라우트를 통해** 연동한다 (업스트림 endpoint 직결 아님).
+라우트 규약: `Path=/mcp/{id}`, 업스트림은 라우트의 `uri`(단일 소스). 게이트웨이가 자기 라우트를
+loopback 으로 통과하며 MCP Streamable HTTP 세션(initialize→`Mcp-Session-Id` 캡처→
+notifications/initialized→호출)을 **자동 처리**한다.
+
+### ① 경로설정 — MCP 라우트 생성
+**경로설정** → 라우트 추가:
 - **ID**: `dummy-mcp`
-- **Display Name**: `Dummy MCP Server`
-- **Endpoint URL**: `http://dummy-mcp-server:8765/mcp`
-- **Transport**: `streamable-http`
-- **Authentication**: `none` (또는 `bearer` → Bearer Token 입력)
-- **System**: `common` → **저장**
+- **URI**: 업스트림 MCP base (예 `http://dummy-mcp-server:8765`)
+- **Predicate**: `Path = /mcp/dummy-mcp`
+- **Filter**: `RewritePath` (regexp `/mcp/dummy-mcp` → replacement `/mcp`) — 게이트웨이 경로를 업스트림 `/mcp` 로 매핑
+- **(선택) Filter** `AuthValidation` (인자 없음 = connector 가 route id) — **게이트웨이가 사용자 권한으로 게이팅**할 때만. MCP 서버가 자체 인증(bearer)하면 걸지 않는다.
 
-### ② 권한관리 — MCP 권한 부여
+### ② 커넥터연동 — MCP 등록
+**커넥터연동** → **등록하기**:
+- **Type**: `mcp`
+- **Gateway Route ID**: ① 의 라우트 선택 (`Path=/mcp/*` 라우트만 목록에 노출)
+- **Display Name** / **System**
+- **Transport**: `streamable-http`
+- **Authentication**: `none` | `bearer` (`bearer` 면 Bearer Token 입력 → 게이트웨이가 업스트림에 주입할 서버 토큰)
+
+### ③ 권한관리 — 권한 부여 (게이트웨이 게이팅인 경우만)
 **권한관리** → **권한 부여**:
-- **Connector**: `mcp:dummy-mcp` 직접 입력 (route 가 아니므로 드롭다운 대신 타이핑)
+- **Connector**: route id (예 `dummy-mcp`) — API 와 동일 (`mcp:` 접두어 없음)
 - 나머지(사번/Client App/System/Role) 동일 → **권한 부여**
 
-> MCP 권한 connector 규칙은 `mcp:{서버ID}`.
+> AuthValidation 을 걸지 않은 **자체-bearer 서버는 권한 부여 불필요**(MCP 서버가 직접 검증).
 
-### ③ 커넥터연동 상세 — 도구 테스트
-**커넥터연동** 목록에서 해당 MCP 클릭 → 상세 패널에서 `tools/list` 조회 및 `tools/call` 실행(예: `add` 도구). 권한이 없으면 403.
+### ④ 커넥터연동 상세 — 도구 스펙 조회
+**커넥터연동** 목록에서 MCP 카드 클릭 → 상세에서 도구 스펙(이름/파라미터/Input Schema)을
+**조회 전용**으로 표시(실행 기능 없음). "에이전트 연동" 가이드(LangGraph·Claude MCP SDK 스니펫)도 함께 제공.
+
+> **인증 방식 2가지**
+> - **게이트웨이 게이팅**: 라우트에 `AuthValidation` + 등록 `Authentication=none` + 권한관리에서 `connector=route id` 부여 → 사용자 macs 토큰을 에이전트에 공유해 연동 (사용자별 권한 통제 가능)
+> - **자체 bearer**: 라우트에 AuthValidation 없음 + 등록 `Authentication=bearer` + 토큰 → 게이트웨이가 저장 토큰을 주입, MCP 서버가 검증
+> - **stateful(세션) 서버**: 위 두 방식과 무관하게 게이트웨이가 세션을 자동 처리(포털 설정 불필요)
 
 ## A-3. 권한관리 화면 요약
 - **사용자 권한 조회**: Employee Number(+선택 App) → **조회**. 각 행의 휴지통 아이콘으로 **해제**.
@@ -217,68 +234,62 @@ curl -s http://localhost:8080/api/orders/list \
 
 ---
 
-## 2. MCP 서버 등록 (레지스트리 → 권한)
+## 2. MCP 서버 등록 (경로설정 → 필터 → 커넥터 → (게이팅 시)권한)
 
-MCP 서버는 게이트웨이 라우트가 아니라 **별도 레지스트리(`MCP_SERVER`)** 이며 JSON-RPC 프록시로 호출된다.
-호출 시 `connector = mcp:{서버id}` 권한을 확인한다 (API 커넥터와 동일한 토큰/헤더/권한 모델).
+MCP 서버는 API 와 동일하게 **게이트웨이 라우트(`Path=/mcp/{id}`)** 를 통해 연동한다. 게이트웨이의 MCP
+클라이언트는 업스트림 endpoint 가 아니라 **자기 라우트를 loopback** 으로 통과하며, MCP Streamable HTTP
+**세션**(initialize→`Mcp-Session-Id` 캡처→`notifications/initialized`→method)을 자동 처리한다.
 
-### 2-1. MCP 서버 등록
-
-```bash
-curl -s -X POST http://localhost:8080/api/admin/mcp/servers \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "dummy-mcp",
-    "name": "Dummy MCP Server",
-    "description": "echo, add",
-    "endpointUrl": "http://dummy-mcp-server:8765/mcp",
-    "transport": "streamable-http",
-    "authType": "none",
-    "system": "common"
-  }'
-```
-
-- `authType`: `none` | `bearer` (`bearer` 면 `authToken` 필수 — MCP 서버로의 인증 토큰)
-- `transport`: `streamable-http`
-
-### 2-2. 권한 부여 (connector = `mcp:{id}`)
+### 2-1. 라우트 생성 (공통)
 
 ```bash
-curl -s -X POST http://localhost:8080/api/admin/permissions \
-  -H "Content-Type: application/json" \
-  -d '{"appName":"portal","employeeNumber":"2078432","system":"common","connector":"mcp:dummy-mcp","role":"admin"}'
+curl -s -X POST http://localhost:8080/api/config/routes "${H_ADMIN[@]}" -d '{
+  "id":"dummy-mcp","uri":"http://dummy-mcp-server:8765",
+  "predicates":[{"name":"Path","args":{"_genkey_0":"/mcp/dummy-mcp"}}],
+  "filters":[{"name":"RewritePath","args":{"regexp":"/mcp/dummy-mcp","replacement":"/mcp"}}],
+  "order":0,"registerSwagger":false}'
+# 게이트웨이 게이팅을 쓰려면 filters 에 {"name":"AuthValidation","args":{}} 추가 (connector=route id).
+# 자체 bearer 검증 서버면 AuthValidation 을 넣지 않는다.
 ```
 
-### 2-3. (선택) 커넥터 메타 노출
+### 2-2. MCP 서버 등록 (라우트와 동일 id 필요)
 
-UI 목록에 MCP 를 노출하려면 type=mcp 커넥터 메타를 추가할 수 있다. 단 현재 `ConnectorService` 는
-동일 id 의 게이트웨이 라우트를 요구하므로, 메타 노출이 필요하면 별도 처리/라우트가 필요하다.
-**권한 게이트는 메타와 무관하게 `mcp:{id}` PERMISSION 으로 동작**한다.
+```bash
+curl -s -X POST http://localhost:8080/api/admin/mcp/servers "${H_ADMIN[@]}" -d '{
+  "id":"dummy-mcp","name":"Dummy MCP Server","transport":"streamable-http",
+  "authType":"none","system":"common"}'
+# 자체 bearer 서버면: "authType":"bearer","authToken":"<서버 토큰>"
+# endpointUrl 은 보내지 않는다 — 업스트림은 라우트 uri 가 단일 소스.
+```
 
-### 2-4. 호출 & 검증
+- `authType=none`: 게이트웨이 게이팅(라우트 AuthValidation)으로 보호.
+- `authType=bearer`: 게이트웨이가 저장된 `authToken` 을 업스트림 `Authorization` 으로 주입 → MCP 서버가 자체 검증.
+
+### 2-3. 권한 부여 (라우트에 AuthValidation 을 건 경우만; connector = route id)
+
+```bash
+curl -s -X POST http://localhost:8080/api/admin/permissions "${H_ADMIN[@]}" \
+  -d '{"appName":"portal","employeeNumber":"2078432","system":"common","connector":"dummy-mcp","role":"admin"}'
+```
+
+### 2-4. 호출 & 검증 (포털 도구 조회와 동일 경로)
 
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/token \
   -H "app_name: portal" -H "employee_number: 2078432" -H "Content-Type: application/json" \
   -d '{"employee_number":"2078432","client_app":"portal"}' | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+H=(-H "app_name: portal" -H "employee_number: 2078432" -H "Authorization: Bearer $TOKEN")
 
-# 도구 목록
-curl -s http://localhost:8080/api/admin/mcp/servers/dummy-mcp/tools \
-  -H "app_name: portal" -H "employee_number: 2078432" -H "Authorization: Bearer $TOKEN"
-
-# 도구 호출 (add 2+3)
-curl -s -X POST http://localhost:8080/api/admin/mcp/servers/dummy-mcp/tools/call \
-  -H "app_name: portal" -H "employee_number: 2078432" -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"add","arguments":{"a":2,"b":3}}'
-# → { "content":[{"type":"text","text":"Sum = 5"}], "error":false, ... }
+curl -s http://localhost:8080/api/admin/mcp/servers/dummy-mcp/tools "${H[@]}"          # 도구 목록
+curl -s -X POST http://localhost:8080/api/admin/mcp/servers/dummy-mcp/tools/call "${H[@]}" \
+  -H "Content-Type: application/json" -d '{"name":"add","arguments":{"a":2,"b":3}}'    # → Sum = 5
 ```
 
-- 권한 있음 → **200**
-- 권한 없음 → **403**
-- 토큰 없음/claim 불일치 → **401**
+- 게이트웨이 게이팅: 권한 있음 **200** / 없음 **403** / 헤더 누락 **400** / 토큰 무효 **401**
+- 자체 bearer: 토큰 일치 **200** / 불일치(MCP 서버에서) **401**
 
-> 게이트 대상: `tools/list`, `tools/call`. 서버 등록/수정/삭제(CRUD)·health probe 는 관리(admin) 동작으로 현재 게이트 대상이 아니다.
+> **직접 연동(에이전트/MCP 클라이언트)**: 라우트 `/mcp/{id}` 로 직접 붙어도 된다. 헤더는 `app_name`/`employee_number`
+> 필수 + `Authorization`(게이팅이면 사용자 macs JWT, 자체-bearer면 서버 토큰). 세션(`Mcp-Session-Id`)은 MCP 클라이언트가 처리.
 
 ---
 
@@ -286,24 +297,30 @@ curl -s -X POST http://localhost:8080/api/admin/mcp/servers/dummy-mcp/tools/call
 
 | | API 서버 | MCP 서버 |
 |---|---|---|
-| 저장 | 게이트웨이 라우트(`PROPERTIES`) + `CONNECTOR` 메타 | `MCP_SERVER` 레지스트리 |
-| 호출 경로 | `/api/<path>/**` (게이트웨이 라우팅) | `/api/admin/mcp/servers/{id}/tools/*` (JSON-RPC 프록시) |
-| 권한 connector | route id (= AuthValidation connector) | `mcp:{id}` |
-| 권한 적용 지점 | 라우트의 `AuthValidation` 필터 | `McpController` → auth-server `/validate` 호출 |
-| 보안 모델 | 토큰 + claim↔헤더 일치 + PERMISSION | **동일** |
+| 저장 | 라우트(`PROPERTIES`) + `CONNECTOR` 메타 | 라우트(`PROPERTIES`) + `MCP_SERVER` 메타 (id 동일) |
+| 호출 경로 | `/api/<path>/**` (게이트웨이 라우팅) | `/mcp/{id}` (게이트웨이 라우트). 포털은 `/api/admin/mcp/servers/{id}/tools(/call)` 프록시가 loopback 으로 그 라우트를 통과 |
+| 권한 connector | route id (= AuthValidation connector) | route id (라우트 AuthValidation 적용 시) — `mcp:` 접두어 없음 |
+| 권한 적용 지점 | 라우트의 `AuthValidation` 필터 | **동일**(라우트 AuthValidation) 또는 **MCP 서버 자체 bearer** |
+| 세션 | — | MCP Streamable HTTP 세션을 게이트웨이가 자동 처리(stateful 지원) |
+| 보안 모델 | 토큰 + claim↔헤더 일치 + PERMISSION | 동일(게이팅) 또는 MCP 서버 자체 검증(bearer) |
 
 ---
 
 ## 4. 관리(admin/config) 엔드포인트 보호
 
-`/api/admin/**`, `/api/config/**` 는 권한·라우트를 **변경**할 수 있으므로 `AdminAccessFilter` 가
-**유효 토큰 + admin role** 을 요구한다. (포털 axios 인터셉터가 토큰·헤더를 자동 주입하므로 admin 사용자는 그대로 동작.)
+`/api/admin/**`, `/api/config/**` 는 `AdminAccessFilter` 가 보호한다. **변경은 admin, 조회는 포털 접근자**로
+구분한다. (포털 axios 인터셉터가 토큰·헤더를 자동 주입.)
 
 | 경로 | 정책 |
 |---|---|
-| `/api/admin/**`, `/api/config/**` (관리) | 토큰 + **admin role** 필수. 없으면 401, admin 아니면 403 |
+| `GET /api/admin/connectors*`, `GET /api/admin/mcp/servers*` (레지스트리 **조회**) | 토큰 + **`portal-route` 권한자**면 admin 아니어도 허용(현황 열람) |
+| 그 외 `/api/admin/**`, `/api/config/**` **변경**(POST/PUT/DELETE 등) | 토큰 + **admin role** 필수. 없으면 401, admin 아니면 403 |
 | `GET /api/admin/permissions/users/{app}/{emp}` | 본인 토큰(헤더=경로 일치)이면 admin 불필요(로그인용). 또는 내부 시크릿(S2S) |
-| `/api/admin/mcp/servers/*/tools`, `/tools/call` | admin gate 제외 → `mcp:{id}` 커넥터 권한으로 게이팅 |
+| `GET /api/admin/mcp/servers/*/tools`, `/health` | 포털 접근자 조회 + 해당 라우트에 AuthValidation 이 있으면 그 connector 권한도 적용 |
+| `POST /api/admin/mcp/servers/*/tools/call` | admin gate 제외 → loopback 라우트(`/mcp/{id}`)의 `AuthValidation`(또는 자체 bearer)로 게이팅 |
+
+> 포털 인터셉터는 **401(인증 실패)에서만 로그아웃**한다. 403(인가 거부)은 세션을 유지하고 화면에 에러만 표시
+> (예: 권한 없는 MCP 도구 조회 → 카드에 "권한 없음", 로그아웃 안 됨).
 
 > admin role = 해당 사용자가 PERMISSION 에 `role=admin` 행을 하나라도 보유. (부트스트랩 2078432 가 admin)
 
@@ -323,11 +340,40 @@ MACS_INTERNAL_SECRET=<양 서비스 동일한 무작위 값>
 
 ## 5. 참고 — E2E 검증
 
-`scripts/e2e-permission-test.sh` 가 위 전 과정을 자동 검증한다:
+`scripts/e2e-permission-test.sh` 가 전 과정을 자동 검증한다 (총 36 케이스):
 헤더 필수 · client_app 발급/검증 · 권한 allow/deny · claim 불일치 차단 · 유량제어 ·
-MCP 권한 게이트 · admin/config 보호 (총 25 케이스).
+MCP 권한 게이트(게이트웨이 게이팅) · admin/config 보호 · **API 문서연동(swagger)** ·
+**MCP 자체 bearer** · **MCP stateful 세션** · **MCP stateful+bearer**.
+
+라우트·커넥터·권한은 init.sql 에 시드하지 않고 스크립트가 런타임에 admin API 로 주입한다(재실행 안전).
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build auth-server gateway-service dummy-api-server
+# 운영 스택 + 테스트 컨테이너(아래 §6)를 함께 기동한 뒤 실행
+docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --build
 bash scripts/e2e-permission-test.sh
+# → PASS=36 FAIL=0
 ```
+
+> 테스트 컨테이너는 **운영 스택(`docker-compose.yml`)에는 없다**. 평상시 `docker compose up -d` 는
+> 인프라 + 앱(auth/gateway/portal)만 띄우고, 테스트할 때만 `-f docker-compose.e2e.yml` 오버레이를 추가한다.
+
+---
+
+## 6. 테스트용 컨테이너 (fixtures)
+
+연동 검증용 더미 서버. MCP 더미 이미지(`infra/dummy-mcp-server`)는 두 env 플래그를 독립 지원한다:
+`MCP_BEARER_TOKEN`(설정 시 자체 bearer 검증), `MCP_STATEFUL=true`(설정 시 Streamable HTTP 세션 강제 —
+initialize 응답으로 `Mcp-Session-Id` 발급, 이후 요청에 없으면 400 / 모르면 404).
+
+| 컨테이너 | 포트 | 특성 | 검증 시나리오 |
+|---|---|---|---|
+| `dummy-mcp-server` | 8765 | stateless, 인증 없음 | 게이트웨이 게이팅(AuthValidation + connector 권한) |
+| `dummy-mcp-auth` | 8766 | `MCP_BEARER_TOKEN` | 자체 bearer 검증 (AuthValidation 없이 authType=bearer + 토큰) |
+| `dummy-mcp-stateful` | 8767 | `MCP_STATEFUL` | 세션 강제 — 게이트웨이가 세션 캡처·재전송 |
+| `dummy-mcp-both` | 8768 | bearer + stateful | 자체 bearer + 세션 동시 |
+| `swagger-api-server` | 8090 | OpenAPI(`/v3/api-docs`) + Swagger UI(`/swagger-ui`) + 샘플 `/api/products` | API 커넥터 문서연동 (커넥터 docsUrl 비우면 `{route uri}/v3/api-docs` 자동 취득) |
+| `dummy-api-server` | 8088 | echo | 헤더/StripPrefix/권한 라우팅 |
+
+> **모든 테스트 컨테이너는 `docker-compose.e2e.yml`(오버레이)에만 정의**되며 운영 `docker-compose.yml` 에는 없다.
+> 이들에 대한 라우트·커넥터·권한도 init.sql 에 시드하지 않는다 — `scripts/e2e-permission-test.sh` 가 런타임에 주입하거나,
+> 수동 검증 시 포털/`/api/config`·`/api/admin` API 로 직접 등록한다(본 매뉴얼 Part A/B 절차).

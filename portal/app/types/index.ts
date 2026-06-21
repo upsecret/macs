@@ -76,7 +76,12 @@ export interface McpServer {
   id: string;
   name: string;
   description: string | null;
+  /** 업스트림 주소 (라우트 uri 의 denormalize, 내부용) */
   endpointUrl: string;
+  /** 게이트웨이 라우트 경로 (예: /mcp/dummy-mcp). 연동은 이 경로로 한다. null 이면 라우트 없음 */
+  gatewayPath: string | null;
+  /** 매칭 게이트웨이 라우트 존재 여부 */
+  active: boolean;
   transport: McpTransport;
   authType: McpAuthType;
   hasAuthToken: boolean;

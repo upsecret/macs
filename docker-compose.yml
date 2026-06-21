@@ -235,25 +235,6 @@ services:
     networks:
       - macs-network
 
-  # ── Dummy MCP Server (test fixture) ───────────────────────
-  # Phase 1 MCP 통합 검증용 단일 파일 Node 서버.
-  # echo, add 도구 노출. gateway-service 가 http://dummy-mcp-server:8765/mcp 로 호출.
-  dummy-mcp-server:
-    build:
-      context: ./infra/dummy-mcp-server
-      dockerfile: Dockerfile
-    container_name: macs-dummy-mcp-server
-    ports:
-      - "8765:8765"
-    healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://localhost:8765/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
-    networks:
-      - macs-network
-
   # ── Portal (React) ────────────────────────────────────────
   portal:
     build:

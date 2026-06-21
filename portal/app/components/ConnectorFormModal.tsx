@@ -16,8 +16,9 @@ import type {
  * 통합 등록/편집 모달.
  *
  * type 을 가장 위에 두고:
- *  - agent / api  → 기존 흐름: 기존 gateway route 선택 + docsUrl(선택)
- *  - mcp          → MCP 서버 직접 등록: endpointUrl + transport + auth
+ *  - agent / api  → 기존 gateway route 선택 + docsUrl(선택)
+ *  - mcp          → 기존 MCP gateway route(Path=/mcp/{id}) 선택 + transport + auth
+ *                   (업스트림은 라우트 uri 가 단일 소스. 호출도 라우트 loopback 경유.)
  *
  * 두 가지 백엔드 리소스(`/api/admin/connectors`, `/api/admin/mcp/servers`)를
  * 같은 모달이 dispatch.
@@ -66,9 +67,6 @@ export default function ConnectorFormModal({ mode, initial, onClose, onSaved }: 
 
   // MCP 측
   const [name, setName] = useState(isMcpInitial(initial) ? initial.name : "");
-  const [endpointUrl, setEndpointUrl] = useState(
-    isMcpInitial(initial) ? initial.endpointUrl : "",
-  );
   const [transport, setTransport] = useState<McpTransport>(
     isMcpInitial(initial) ? initial.transport : "streamable-http",
   );
@@ -80,16 +78,23 @@ export default function ConnectorFormModal({ mode, initial, onClose, onSaved }: 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // REST 측: create 모드에서 available routes 로드. MCP 면 불필요.
+  // create 모드: type 에 맞는 available routes 로드. MCP 도 API 와 동일하게
+  // 경로설정에서 만든 라우트를 선택해 연동한다.
   useEffect(() => {
-    if (mode !== "create" || isMcp) return;
+    if (mode !== "create") return;
+    const url = isMcp
+      ? "/api/admin/mcp/available-routes"
+      : "/api/admin/connectors/available-routes";
     api
-      .get<AvailableRoute[]>("/api/admin/connectors/available-routes")
+      .get<AvailableRoute[]>(url)
       .then((r) => {
         setAvailableRoutes(r.data);
-        if (r.data.length > 0 && !id) setId(r.data[0].id);
+        setId(r.data.length > 0 ? r.data[0].id : "");
       })
-      .catch(() => setAvailableRoutes([]));
+      .catch(() => {
+        setAvailableRoutes([]);
+        setId("");
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, isMcp]);
 
@@ -104,11 +109,8 @@ export default function ConnectorFormModal({ mode, initial, onClose, onSaved }: 
     setSaving(true);
     try {
       if (isMcp) {
-        if (!id.trim() || !name.trim() || !endpointUrl.trim()) {
-          throw new Error("id, name, endpointUrl 은 필수입니다.");
-        }
-        if (!/^https?:\/\//.test(endpointUrl.trim())) {
-          throw new Error("endpointUrl 은 http:// 또는 https:// 로 시작해야 합니다.");
+        if (!id.trim() || !name.trim()) {
+          throw new Error("라우트와 name 은 필수입니다.");
         }
         if (authType === "bearer" && mode === "create" && !authToken.trim()) {
           throw new Error("authType=bearer 일 때 authToken 이 필요합니다.");
@@ -117,7 +119,7 @@ export default function ConnectorFormModal({ mode, initial, onClose, onSaved }: 
           id: id.trim(),
           name: name.trim(),
           description: description?.trim() || null,
-          endpointUrl: endpointUrl.trim(),
+          // endpointUrl 은 보내지 않는다 — 업스트림은 선택한 라우트 uri 가 단일 소스.
           transport,
           authType,
           authToken: authToken.trim() ? authToken.trim() : null,
@@ -159,8 +161,6 @@ export default function ConnectorFormModal({ mode, initial, onClose, onSaved }: 
     }
   };
 
-  const idDisabled = mode === "edit";
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
@@ -193,7 +193,7 @@ export default function ConnectorFormModal({ mode, initial, onClose, onSaved }: 
             {mode === "create" && (
               <p className="mt-1 text-xs text-gray-500">
                 {isMcp
-                  ? "MCP 서버 endpoint 를 직접 등록합니다. gateway route 와 무관."
+                  ? "경로설정에서 만든 MCP 라우트(Path=/mcp/{id})를 선택해 연동합니다."
                   : "기존 gateway route 에 메타데이터를 부여합니다."}
               </p>
             )}
@@ -202,12 +202,13 @@ export default function ConnectorFormModal({ mode, initial, onClose, onSaved }: 
           {/* ── ID ───────────────────────────────────────── */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              {isMcp ? "ID" : "Gateway Route ID"}
+              Gateway Route ID
             </label>
-            {!isMcp && mode === "create" ? (
+            {mode === "create" ? (
               availableRoutes.length === 0 ? (
                 <p className="text-sm text-gray-400 px-3 py-2 border border-dashed border-gray-300 rounded-lg">
-                  등록 가능한 라우트가 없습니다. 경로설정에서 먼저 라우트를 만드세요.
+                  등록 가능한 {isMcp ? "MCP " : ""}라우트가 없습니다. 경로설정에서 먼저{" "}
+                  {isMcp ? "Path=/mcp/{id} 라우트를" : "라우트를"} 만드세요.
                 </p>
               ) : (
                 <select
@@ -227,12 +228,8 @@ export default function ConnectorFormModal({ mode, initial, onClose, onSaved }: 
               <input
                 type="text"
                 value={id}
-                onChange={(e) => setId(e.target.value)}
-                readOnly={idDisabled}
-                placeholder={isMcp ? "my-mcp-server" : ""}
-                className={`w-full px-3 py-2 border rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary/40 focus:border-primary ${
-                  idDisabled ? "border-gray-200 bg-gray-50 text-gray-600" : "border-gray-300"
-                }`}
+                readOnly
+                className="w-full px-3 py-2 border rounded-lg text-sm font-mono border-gray-200 bg-gray-50 text-gray-600"
                 required
               />
             )}
@@ -285,19 +282,22 @@ export default function ConnectorFormModal({ mode, initial, onClose, onSaved }: 
           {/* ── MCP 전용 필드 ───────────────────────────── */}
           {isMcp ? (
             <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Endpoint URL
-                </label>
-                <input
-                  type="text"
-                  value={endpointUrl}
-                  onChange={(e) => setEndpointUrl(e.target.value)}
-                  placeholder="http://dummy-mcp-server:8765/mcp"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono focus:ring-2 focus:ring-primary/40 focus:border-primary"
-                  required
-                />
-              </div>
+              {(() => {
+                const sel = availableRoutes.find((r) => r.id === id);
+                return sel ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Upstream <span className="text-gray-400 text-xs font-normal">(라우트 uri · 자동)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={sel.uri}
+                      readOnly
+                      className="w-full px-3 py-2 border rounded-lg text-sm font-mono border-gray-200 bg-gray-50 text-gray-500"
+                    />
+                  </div>
+                ) : null;
+              })()}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -386,8 +386,7 @@ export default function ConnectorFormModal({ mode, initial, onClose, onSaved }: 
             <button
               type="submit"
               disabled={
-                saving ||
-                (mode === "create" && !isMcp && availableRoutes.length === 0)
+                saving || (mode === "create" && availableRoutes.length === 0)
               }
               className="px-4 py-2 text-sm text-white bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >

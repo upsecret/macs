@@ -52,7 +52,8 @@ function fromMcp(s: McpServer): RegistryItem {
     description: s.description,
     type: "mcp",
     system: s.system,
-    active: true,
+    // API 커넥터와 동일: 매칭 게이트웨이 라우트가 있어야 활성.
+    active: s.active,
     raw: s,
   };
 }
@@ -142,6 +143,7 @@ export default function ConnectorPage() {
     const activeBadge = selected.active
       ? "bg-green-50 text-green-700"
       : "bg-gray-100 text-gray-500";
+    const mcp = selected.kind === "mcp" ? (selected.raw as McpServer) : null;
     return (
       <div>
         <div className="flex items-center gap-4 mb-6">
@@ -172,7 +174,7 @@ export default function ConnectorPage() {
                 <span className="text-[10px] uppercase tracking-wider text-gray-400">System</span>
                 <p className="text-sm font-mono text-gray-800">{selected.system}</p>
               </div>
-              {selected.kind === "connector" && (
+              {(
                 <div>
                   <span className="text-[10px] uppercase tracking-wider text-gray-400">
                     Status
@@ -190,6 +192,41 @@ export default function ConnectorPage() {
                     </span>
                   </p>
                 </div>
+              )}
+              {mcp && (
+                <>
+                  <div>
+                    <span className="text-[10px] uppercase tracking-wider text-gray-400">Auth</span>
+                    <p className="text-sm font-mono text-gray-800">
+                      {mcp.authType}
+                      {mcp.hasAuthToken && (
+                        <span className="ml-2 text-xs text-gray-500">(token set)</span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <span className="text-[10px] uppercase tracking-wider text-gray-400">
+                      Gateway Endpoint (연동 경로)
+                    </span>
+                    {mcp.gatewayPath ? (
+                      <p className="text-sm font-mono text-gray-800 break-all">
+                        {mcp.gatewayPath}
+                        <span className="ml-2 text-xs text-gray-500">(게이트웨이 경유)</span>
+                      </p>
+                    ) : (
+                      <p className="text-sm text-error">
+                        매칭 게이트웨이 라우트 없음 — 경로설정에서{" "}
+                        <code className="font-mono">Path=/mcp/{mcp.id}</code> 라우트를 먼저 등록하세요.
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase tracking-wider text-gray-400">
+                      Transport
+                    </span>
+                    <p className="text-sm font-mono text-gray-800">{mcp.transport}</p>
+                  </div>
+                </>
               )}
               <div className="md:col-span-2">
                 <span className="text-[10px] uppercase tracking-wider text-gray-400">
@@ -306,7 +343,7 @@ export default function ConnectorPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {cards.map((c) => {
                   const cardKey = `${c.kind}:${c.id}`;
-                  const showActive = c.kind === "connector";
+                  const showActive = true;
                   const activeBadge = c.active
                     ? "bg-green-50 text-green-700"
                     : "bg-gray-100 text-gray-500";
